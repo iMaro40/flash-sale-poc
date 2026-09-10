@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import { getProductById } from "./service";
 
 export const getProductHandler = async (
-  request: Request,
+  _: Request,
   response: Response,
   next: NextFunction,
 ): Promise<Response | void> => {

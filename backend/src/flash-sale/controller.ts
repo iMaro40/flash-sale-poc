@@ -4,7 +4,7 @@ import type { CreateFlashSaleInput } from "./dto/create-flash-sale";
 import { createFlashSale } from "./service";
 
 export const createFlashSaleHandler = async (
-  request: Request,
+  _: Request,
   response: Response,
   next: NextFunction,
 ): Promise<Response | void> => {
