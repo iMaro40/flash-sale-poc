@@ -1,5 +1,5 @@
-import { CreateFlashSaleInput } from "./model";
 import { FlashSaleRepository } from "./repository";
+import { CreateFlashSaleInput } from "./dto/create-flash-sale";
 
 const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository();
 

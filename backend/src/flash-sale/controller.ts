@@ -1,8 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 
-import { CreateFlashSaleInput } from "./model";
+import { CreateFlashSaleInput } from "./dto/create-flash-sale";
 import { createFlashSaleRequestSchema } from "./schema";
-import { createFlashSale, getHelloMessage } from "./service";
+import {
+  createFlashSale,
+  getHelloMessage,
+} from "./service";
 
 export const getHelloWorld = (
   _request: Request,
