@@ -22,6 +22,7 @@ export const createFlashSaleHandler = async (
     const parsedRequest = createFlashSaleRequestSchema.safeParse(request.body);
 
     if (!parsedRequest.success) {
+      // TO DO: Fix this later...
       const validationErrors: string[] = parsedRequest.error.issues.map(
         (issue): string => `${issue.path.join(".")}: ${issue.message}`,
       );
@@ -47,6 +48,7 @@ export const createFlashSaleHandler = async (
       message: "Flash sale created",
     });
   } catch (error) {
+    // TO DO: Custom errors handling. For example shared validation helper will throw errors
     next(error);
   }
 };

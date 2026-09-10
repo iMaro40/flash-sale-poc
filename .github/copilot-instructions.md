@@ -15,6 +15,8 @@
 
 7. Controllers should use try/catch and delegate errors to centralized error-handling middleware.
 
+8. Preserve existing code comments. Do not remove or rewrite comments unless explicitly requested.
+
 ## Execution Mode
 
 - Apply code changes directly without extra confirmation prompts.
