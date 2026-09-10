@@ -12,6 +12,17 @@ interface FlashSaleDbRow {
 export class FlashSaleRepository {
   public constructor(private readonly db: Knex) {}
 
+  public async findActiveFlashSaleByProductId(
+    productId: string,
+    now: Date,
+  ): Promise<FlashSaleDbRow | undefined> {
+    return this.db<FlashSaleDbRow>("flash_sales")
+      .where("product_id", productId)
+      .andWhere("start_time", "<=", now)
+      .andWhere("end_time", ">", now)
+      .first();
+  }
+
   public async findOverlappingFlashSaleByProductId(
     input: CreateFlashSaleInput,
   ): Promise<FlashSaleDbRow | undefined> {
