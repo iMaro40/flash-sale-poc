@@ -20,6 +20,8 @@ export class FlashSaleService {
         new Date(),
       );
 
+    // TO DO: Probably cache this as well.
+
     if (!flashSale) {
       return undefined;
     }
