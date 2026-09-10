@@ -1,8 +1,13 @@
 import { Router } from "express";
 
-import { createFlashSaleHandler, getHelloWorld } from "./controller";
+import { validateRequestData } from "../middleware/validate-request-data";
+import { createFlashSaleHandler } from "./controller";
+import { createFlashSaleRequestSchema } from "./schema";
 
 export const flashSaleRouter: Router = Router();
 
-flashSaleRouter.get("/", getHelloWorld);
-flashSaleRouter.post("/flash-sales", createFlashSaleHandler);
+flashSaleRouter.post(
+  "/flash-sales",
+  validateRequestData(createFlashSaleRequestSchema),
+  createFlashSaleHandler,
+);

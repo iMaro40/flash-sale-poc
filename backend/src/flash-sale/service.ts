@@ -12,15 +12,19 @@ export const getHelloMessage = (): string => {
   return "Hello, World!";
 };
 
-export const createFlashSale = async (
-  input: CreateFlashSaleInput,
-): Promise<void> => {
+const validateCreateFlashSale = async (input: CreateFlashSaleInput) => {
   const overlappingFlashSale =
     await flashSaleRepository.findOverlappingFlashSaleByProductId(input);
 
   if (overlappingFlashSale !== undefined) {
     throw new FlashSaleOverlapError(input.productId);
   }
+};
+
+export const createFlashSale = async (
+  input: CreateFlashSaleInput,
+): Promise<void> => {
+  await validateCreateFlashSale(input);
 
   await flashSaleRepository.createFlashSale(input);
 };

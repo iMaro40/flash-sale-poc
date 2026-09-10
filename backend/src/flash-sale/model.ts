@@ -5,4 +5,5 @@ export interface FlashSale {
   productId: string;
   startTime: Timestamptz;
   endTime: Timestamptz;
+  status: "upcoming" | "active" | "ended";
 }
