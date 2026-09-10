@@ -1,13 +1,25 @@
-import dotenv from "dotenv";
-import path from "node:path";
+import { config as loadEnv } from "dotenv";
+import { resolve } from "node:path";
 
 import type { Knex } from "knex";
 
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+loadEnv({ path: resolve(__dirname, "../.env") });
 
-const config: Knex.Config = {
+const connection = {
+  host: process.env.POSTGRES_HOST ?? "localhost",
+  port: Number(process.env.POSTGRES_PORT ?? 5432),
+  user: process.env.POSTGRES_USER ?? "postgres",
+  password: process.env.POSTGRES_PASSWORD ?? "postgres",
+  database: process.env.POSTGRES_DB ?? "flash_sale",
+};
+
+const knexConfig: Knex.Config = {
   client: "pg",
-  connection: process.env.DATABASE_URL,
+  connection,
+  pool: {
+    min: 0,
+    max: 5,
+  },
   migrations: {
     directory: "./src/database/migrations",
     extension: "ts",
@@ -15,4 +27,4 @@ const config: Knex.Config = {
   },
 };
 
-export default config;
+export default knexConfig;

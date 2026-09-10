@@ -1,7 +1,10 @@
+import { database } from "../database";
 import { FlashSaleRepository } from "./repository";
 import { CreateFlashSaleInput } from "./dto/create-flash-sale";
 
-const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository();
+const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository(
+  database,
+);
 
 export const getHelloMessage = (): string => {
   return "Hello, World!";

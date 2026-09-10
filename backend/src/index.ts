@@ -1,11 +1,14 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { resolve } from "node:path";
 
 import cors from "cors";
-import express, { Express } from "express";
+import express, { type Express } from "express";
 
 import { connectDatabase } from "./database";
 import { flashSaleRouter } from "./flash-sale/router";
 import { errorHandler } from "./middleware/error-handler";
+
+config({ path: resolve(__dirname, "../../.env") });
 
 const app: Express = express();
 const port: number = Number(process.env.PORT ?? 3000);
