@@ -8,7 +8,6 @@ export async function up(knex: Knex): Promise<void> {
     table.uuid("product_id").notNullable();
     table.timestamp("start_time", { useTz: true }).notNullable();
     table.timestamp("end_time", { useTz: true }).notNullable();
-    table.uuid("user_id").notNullable();
     table.check(
       "?? > ??",
       ["end_time", "start_time"],

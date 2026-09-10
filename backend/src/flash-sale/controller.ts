@@ -1,11 +1,8 @@
-import { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 
-import { CreateFlashSaleInput } from "./dto/create-flash-sale";
+import type { CreateFlashSaleInput } from "./dto/create-flash-sale";
 import { createFlashSaleRequestSchema } from "./schema";
-import {
-  createFlashSale,
-  getHelloMessage,
-} from "./service";
+import { createFlashSale, getHelloMessage } from "./service";
 
 export const getHelloWorld = (
   _request: Request,
@@ -25,7 +22,6 @@ export const createFlashSaleHandler = async (
     const parsedRequest = createFlashSaleRequestSchema.safeParse(request.body);
 
     if (!parsedRequest.success) {
-      // TO DO: Fix this later...
       const validationErrors: string[] = parsedRequest.error.issues.map(
         (issue): string => `${issue.path.join(".")}: ${issue.message}`,
       );
@@ -36,13 +32,12 @@ export const createFlashSaleHandler = async (
       });
     }
 
-    const { productId, startTime, endTime, userId } = parsedRequest.data;
+    const { productId, startTime, endTime } = parsedRequest.data;
 
     const input: CreateFlashSaleInput = {
       productId,
       startTime,
       endTime,
-      userId,
     };
 
     await createFlashSale(input);
@@ -51,7 +46,15 @@ export const createFlashSaleHandler = async (
       message: "Flash sale created",
     });
   } catch (error) {
-    // TO DO: Custom errors handling. For example shared validation helper will throw errors
+    if (
+      error instanceof Error &&
+      error.message === "An active flash sale already exists for this product"
+    ) {
+      return response.status(409).json({
+        message: error.message,
+      });
+    }
+
     next(error);
   }
 };
