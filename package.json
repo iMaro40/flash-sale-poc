@@ -1,0 +1,10 @@
+{
+  "name": "flash-sale",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@8.10.2",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
+}
