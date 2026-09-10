@@ -9,4 +9,12 @@ export const createFlashSaleRequestSchema = z
   .refine((value): boolean => value.endTime > value.startTime, {
     message: "endTime must be greater than startTime",
     path: ["endTime"],
+  })
+  .refine((value): boolean => value.startTime > new Date(), {
+    message: "startTime must be in the future",
+    path: ["startTime"],
+  })
+  .refine((value): boolean => value.endTime > new Date(), {
+    message: "endTime must be in the future",
+    path: ["endTime"],
   });

@@ -1,4 +1,5 @@
 import { database } from "../database";
+import { FlashSaleOverlapError } from "../errors/flash-sale-overlap";
 import type { CreateFlashSaleInput } from "./dto/create-flash-sale";
 import { FlashSaleRepository } from "./repository";
 
@@ -14,11 +15,11 @@ export const getHelloMessage = (): string => {
 export const createFlashSale = async (
   input: CreateFlashSaleInput,
 ): Promise<void> => {
-  const activeFlashSale =
-    await flashSaleRepository.findActiveFlashSaleByProductId(input.productId);
+  const overlappingFlashSale =
+    await flashSaleRepository.findOverlappingFlashSaleByProductId(input);
 
-  if (activeFlashSale !== undefined) {
-    throw new Error("An active flash sale already exists for this product");
+  if (overlappingFlashSale !== undefined) {
+    throw new FlashSaleOverlapError(input.productId);
   }
 
   await flashSaleRepository.createFlashSale(input);

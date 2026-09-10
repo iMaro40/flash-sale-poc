@@ -46,15 +46,6 @@ export const createFlashSaleHandler = async (
       message: "Flash sale created",
     });
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "An active flash sale already exists for this product"
-    ) {
-      return response.status(409).json({
-        message: error.message,
-      });
-    }
-
     next(error);
   }
 };
