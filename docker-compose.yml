@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flash-sale-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: flash_sale
+    volumes:
+      - flash-sale-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  flash-sale-postgres-data:
