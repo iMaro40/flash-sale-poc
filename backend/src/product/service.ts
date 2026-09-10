@@ -1,25 +1,29 @@
 import { database } from "../database";
 import { ProductNotFoundError } from "../errors/product-not-found";
 import type { CreateProductInput } from "./dto/create-product";
-import { ProductRepository } from "./repository";
 import type { Product } from "./model";
+import { ProductRepository } from "./repository";
 
-const productRepository: ProductRepository = new ProductRepository(database);
+export class ProductService {
+  public constructor(private readonly productRepository: ProductRepository) {}
 
-export const createProduct = async (
-  input: CreateProductInput,
-): Promise<Product> => {
-  return productRepository.create(input);
-};
-
-export const getProductById = async (productId: string): Promise<Product> => {
-  const product = await productRepository.findById(productId);
-
-  // TO DO: Caching
-
-  if (!product) {
-    throw new ProductNotFoundError(productId);
+  public async createProduct(input: CreateProductInput): Promise<Product> {
+    return this.productRepository.create(input);
   }
 
-  return product;
-};
+  public async getProductById(productId: string): Promise<Product> {
+    const product = await this.productRepository.findById(productId);
+
+    // TO DO: Caching
+
+    if (!product) {
+      throw new ProductNotFoundError(productId);
+    }
+
+    return product;
+  }
+}
+
+export const productService: ProductService = new ProductService(
+  new ProductRepository(database),
+);

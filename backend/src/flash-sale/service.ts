@@ -1,30 +1,32 @@
 import { database } from "../database";
 import { FlashSaleOverlapError } from "../errors/flash-sale-overlap";
+import { productService, ProductService } from "../product/service";
 import type { CreateFlashSaleInput } from "./dto/create-flash-sale";
 import { FlashSaleRepository } from "./repository";
 
-// Fine to declare this in this file since only this service should access this repository anyway
-const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository(
-  database,
+export class FlashSaleService {
+  public constructor(
+    private readonly flashSaleRepository: FlashSaleRepository,
+    private readonly productService: ProductService,
+  ) {}
+
+  public async createFlashSale(input: CreateFlashSaleInput): Promise<void> {
+    await this.productService.getProductById(input.productId);
+
+    const overlappingFlashSale =
+      await this.flashSaleRepository.findOverlappingFlashSaleByProductId(input);
+
+    if (overlappingFlashSale !== undefined) {
+      throw new FlashSaleOverlapError(input.productId);
+    }
+
+    await this.flashSaleRepository.createFlashSale(input);
+  }
+}
+
+const flashSaleService: FlashSaleService = new FlashSaleService(
+  new FlashSaleRepository(database),
+  productService,
 );
 
-export const getHelloMessage = (): string => {
-  return "Hello, World!";
-};
-
-const validateCreateFlashSale = async (input: CreateFlashSaleInput) => {
-  const overlappingFlashSale =
-    await flashSaleRepository.findOverlappingFlashSaleByProductId(input);
-
-  if (overlappingFlashSale !== undefined) {
-    throw new FlashSaleOverlapError(input.productId);
-  }
-};
-
-export const createFlashSale = async (
-  input: CreateFlashSaleInput,
-): Promise<void> => {
-  await validateCreateFlashSale(input);
-
-  await flashSaleRepository.createFlashSale(input);
-};
+export { flashSaleService };

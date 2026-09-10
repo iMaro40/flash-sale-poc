@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
 import type { CreateProductInput } from "./dto/create-product";
-import { createProduct, getProductById } from "./service";
+import { productService } from "./service";
 
 export const createProductHandler = async (
   _: Request,
@@ -10,7 +10,7 @@ export const createProductHandler = async (
 ): Promise<Response | void> => {
   try {
     const input = response.locals.requestData as CreateProductInput;
-    const product = await createProduct(input);
+    const product = await productService.createProduct(input);
 
     return response.status(201).json(product);
   } catch (error) {
@@ -27,7 +27,7 @@ export const getProductHandler = async (
     const { productId } = response.locals.requestData as {
       productId: string;
     };
-    const product = await getProductById(productId);
+    const product = await productService.getProductById(productId);
 
     return response.status(200).json(product);
   } catch (error) {

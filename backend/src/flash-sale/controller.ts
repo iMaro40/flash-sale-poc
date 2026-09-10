@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
 import type { CreateFlashSaleInput } from "./dto/create-flash-sale";
-import { createFlashSale } from "./service";
+import { flashSaleService } from "./service";
 
 export const createFlashSaleHandler = async (
   _: Request,
@@ -18,7 +18,7 @@ export const createFlashSaleHandler = async (
       endTime,
     };
 
-    await createFlashSale(input);
+    await flashSaleService.createFlashSale(input);
 
     return response.status(201).json({
       message: "Flash sale created",
