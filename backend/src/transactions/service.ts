@@ -19,6 +19,16 @@ export class TransactionService {
     );
   }
 
+  public async getTransactionByUserIdAndProductId(
+    userId: string,
+    productId: string,
+  ): Promise<Transaction | undefined> {
+    return this.transactionRepository.getTransactionByUserIdAndProductId(
+      userId,
+      productId,
+    );
+  }
+
   public async createPendingTransaction(
     input: CreatePendingTransactionInput,
   ): Promise<Transaction> {

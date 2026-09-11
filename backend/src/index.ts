@@ -9,6 +9,7 @@ import { errorHandler } from "./middleware/error-handler";
 import { purchaseRouter } from "./purchase/router";
 import { productRouter } from "./product/router";
 import { connectRedis } from "./redis";
+import { transactionRouter } from "./transactions/router";
 
 config({ path: resolve(__dirname, "../../.env") });
 
@@ -23,6 +24,7 @@ const startServer = async (): Promise<void> => {
   app.use(flashSaleRouter);
   app.use(productRouter);
   app.use(purchaseRouter);
+  app.use(transactionRouter);
   app.use(errorHandler);
 
   app.listen(port, (): void => {

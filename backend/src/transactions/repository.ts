@@ -40,6 +40,18 @@ export class TransactionRepository {
     return transaction ? this.mapToTransaction(transaction) : undefined;
   }
 
+  public async getTransactionByUserIdAndProductId(
+    userId: string,
+    productId: string,
+  ): Promise<Transaction | undefined> {
+    const transaction = await this.db<TransactionDbRow>("transactions")
+      .where("user_id", userId)
+      .andWhere("product_id", productId)
+      .first();
+
+    return transaction ? this.mapToTransaction(transaction) : undefined;
+  }
+
   public async createPendingTransaction(
     input: CreatePendingTransactionInput,
   ): Promise<Transaction> {
