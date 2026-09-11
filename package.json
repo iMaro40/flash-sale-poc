@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "server": "pnpm --filter backend dev",
-    "db:up": "docker compose up -d postgres",
-    "db:down": "docker compose down",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
     "db:migrate": "npm --prefix backend run db:migrate"
   },
   "packageManager": "pnpm@8.10.2",
