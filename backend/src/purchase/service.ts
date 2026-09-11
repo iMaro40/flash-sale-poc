@@ -2,7 +2,7 @@ import type { Knex } from "knex";
 
 import { database } from "../database";
 import { TransactionAlreadyExistsError } from "../errors/transaction-already-exists";
-import { FlashSaleNotActiveError } from "../errors/flash-sale-not-active";
+import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { FlashSaleRepository } from "../flash-sale/repository";
 import { ProductRepository } from "../product/repository";
@@ -55,7 +55,7 @@ export class PurchaseService {
       );
 
     if (!activeFlashSale) {
-      throw new FlashSaleNotActiveError(input.productId);
+      throw new ActiveFlashSaleNotFoundError(input.productId);
     }
 
     const existingTransaction =

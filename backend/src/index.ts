@@ -6,6 +6,7 @@ import express, { type Express } from "express";
 
 import { flashSaleRouter } from "./flash-sale/router";
 import { errorHandler } from "./middleware/error-handler";
+import { purchaseRouter } from "./purchase/router";
 import { productRouter } from "./product/router";
 
 config({ path: resolve(__dirname, "../../.env") });
@@ -18,6 +19,7 @@ const startServer = async (): Promise<void> => {
   app.use(express.json());
   app.use(flashSaleRouter);
   app.use(productRouter);
+  app.use(purchaseRouter);
   app.use(errorHandler);
 
   app.listen(port, (): void => {
