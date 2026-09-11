@@ -1,7 +1,9 @@
 import type { Knex } from "knex";
 
 import { database } from "../database";
+import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
 import { OutOfStockError } from "../errors/out-of-stock";
+import { FlashSaleRepository } from "../flash-sale/repository";
 import { ProductRepository } from "../product/repository";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
@@ -12,9 +14,23 @@ export class PurchaseService {
 
   public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
     await this.db.transaction(async (trx: Knex.Transaction): Promise<void> => {
+      const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository(
+        trx,
+      );
       const productRepository: ProductRepository = new ProductRepository(trx);
       const transactionRepository: TransactionRepository =
         new TransactionRepository(trx);
+
+      const now = new Date();
+      const activeFlashSale =
+        await flashSaleRepository.findActiveFlashSaleByProductId(
+          input.productId,
+          now,
+        );
+
+      if (!activeFlashSale) {
+        throw new ActiveFlashSaleNotFoundError(input.productId);
+      }
 
       const transaction = await transactionRepository.createPendingTransaction({
         idempotencyKey: input.idempotencyKey,
