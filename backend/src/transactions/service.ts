@@ -1,6 +1,7 @@
 import { database } from "../database";
+import { InvalidTransactionStatusError } from "../errors/invalid-transaction-status";
 import type { CreatePendingTransactionInput } from "./dto/create-pending-transaction";
-import type { Transaction } from "./model";
+import { TransactionStatus, type Transaction } from "./model";
 import { TransactionRepository } from "./repository";
 
 export class TransactionService {
@@ -20,8 +21,24 @@ export class TransactionService {
 
   public async createPendingTransaction(
     input: CreatePendingTransactionInput,
+  ): Promise<Transaction> {
+    return this.transactionRepository.createPendingTransaction(input);
+  }
+
+  public async updateTransactionStatusById(
+    id: string,
+    status: string,
   ): Promise<void> {
-    await this.transactionRepository.createPendingTransaction(input);
+    if (
+      !Object.values(TransactionStatus).includes(status as TransactionStatus)
+    ) {
+      throw new InvalidTransactionStatusError(status);
+    }
+
+    await this.transactionRepository.updateTransactionStatusById(
+      id,
+      status as TransactionStatus,
+    );
   }
 }
 

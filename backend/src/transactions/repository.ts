@@ -16,6 +16,18 @@ interface TransactionDbRow {
 export class TransactionRepository {
   public constructor(private readonly db: Knex) {}
 
+  private mapToTransaction(row: TransactionDbRow): Transaction {
+    return {
+      id: row.id,
+      idempotencyKey: row.idempotency_key,
+      productId: row.product_id,
+      userId: row.user_id,
+      status: row.status as TransactionStatus,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
   public async getTransactionByIdempotencyKeyAndUserId(
     idempotencyKey: string,
     userId: string,
@@ -25,28 +37,30 @@ export class TransactionRepository {
       .andWhere("user_id", userId)
       .first();
 
-    if (!transaction) {
-      return undefined;
-    }
-
-    return {
-      id: transaction.id,
-      idempotencyKey: transaction.idempotency_key,
-      productId: transaction.product_id,
-      userId: transaction.user_id,
-      status: transaction.status as TransactionStatus,
-      createdAt: transaction.created_at,
-      updatedAt: transaction.updated_at,
-    };
+    return transaction ? this.mapToTransaction(transaction) : undefined;
   }
 
   public async createPendingTransaction(
     input: CreatePendingTransactionInput,
+  ): Promise<Transaction> {
+    const [transaction] = await this.db<TransactionDbRow>("transactions")
+      .insert({
+        idempotency_key: input.idempotencyKey,
+        product_id: input.productId,
+        user_id: input.userId,
+      })
+      .returning("*");
+
+    return this.mapToTransaction(transaction);
+  }
+
+  public async updateTransactionStatusById(
+    id: string,
+    status: TransactionStatus,
   ): Promise<void> {
-    await this.db<TransactionDbRow>("transactions").insert({
-      idempotency_key: input.idempotencyKey,
-      product_id: input.productId,
-      user_id: input.userId,
+    await this.db<TransactionDbRow>("transactions").where("id", id).update({
+      status,
+      updated_at: new Date(),
     });
   }
 }

@@ -6,6 +6,7 @@ import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-fo
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { FlashSaleRepository } from "../flash-sale/repository";
 import { ProductRepository } from "../product/repository";
+import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 
@@ -28,11 +29,18 @@ export class PurchaseService {
         transactionRepository,
       );
 
-      await transactionRepository.createPendingTransaction({
+      const transaction = await transactionRepository.createPendingTransaction({
         idempotencyKey: input.idempotencyKey,
         productId: input.productId,
         userId: input.userId,
       });
+
+      await productRepository.decrementStockByProductId(input.productId);
+
+      await transactionRepository.updateTransactionStatusById(
+        transaction.id,
+        TransactionStatus.Completed,
+      );
     });
   }
 
@@ -70,8 +78,6 @@ export class PurchaseService {
         input.userId,
       );
     }
-
-    // TODO: Decrement stock.
   }
 }
 

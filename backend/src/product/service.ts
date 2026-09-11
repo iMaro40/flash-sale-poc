@@ -18,6 +18,15 @@ export class ProductService {
 
     return product;
   }
+
+  public async getStockByProductId(
+    productId: string,
+  ): Promise<number | undefined> {
+    // TO DO: Cache this.
+    const product = await this.getProductById(productId);
+
+    return product?.stock;
+  }
 }
 
 export const productService: ProductService = new ProductService(
