@@ -22,18 +22,6 @@ export const database: Knex = knex({
   },
 });
 
-export const connectDatabase = async (): Promise<void> => {
-  if (
-    process.env.DATABASE_URL === undefined ||
-    process.env.DATABASE_URL.trim().length === 0
-  ) {
-    throw new Error("DATABASE_URL is required");
-  }
-
-  // Simple health check
-  await database.raw("SELECT 1");
-};
-
 export const closeDatabase = async (): Promise<void> => {
   await database.destroy();
 };

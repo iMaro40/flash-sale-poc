@@ -1,45 +1,57 @@
+import type { Knex } from "knex";
+
+import { database } from "../database";
 import { TransactionAlreadyExistsError } from "../errors/transaction-already-exists";
 import { FlashSaleNotActiveError } from "../errors/flash-sale-not-active";
 import { ProductNotFoundError } from "../errors/product-not-found";
-import { FlashSaleService, flashSaleService } from "../flash-sale/service";
-import { ProductService, productService } from "../product/service";
-import {
-  TransactionService,
-  transactionService,
-} from "../transactions/service";
+import { FlashSaleRepository } from "../flash-sale/repository";
+import { ProductRepository } from "../product/repository";
+import { TransactionRepository } from "../transactions/repository";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 
 export class PurchaseService {
-  public constructor(
-    private readonly productService: ProductService,
-    private readonly flashSaleService: FlashSaleService,
-    private readonly transactionService: TransactionService,
-  ) {}
+  public constructor(private readonly db: Knex) {}
 
   public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
-    await this.validatePurchaseProduct(input);
+    await this.db.transaction(async (trx: Knex.Transaction): Promise<void> => {
+      const productRepository: ProductRepository = new ProductRepository(trx);
+      const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository(
+        trx,
+      );
+      const transactionRepository: TransactionRepository =
+        new TransactionRepository(trx);
 
-    await this.transactionService.createPendingTransaction({
-      idempotencyKey: input.idempotencyKey,
-      productId: input.productId,
-      userId: input.userId,
+      await this.validatePurchaseProduct(
+        input,
+        productRepository,
+        flashSaleRepository,
+        transactionRepository,
+      );
+
+      await transactionRepository.createPendingTransaction({
+        idempotencyKey: input.idempotencyKey,
+        productId: input.productId,
+        userId: input.userId,
+      });
     });
-
-    // TODO: Decrement stock.
   }
 
   private async validatePurchaseProduct(
     input: PurchaseProductInput,
+    productRepository: ProductRepository,
+    flashSaleRepository: FlashSaleRepository,
+    transactionRepository: TransactionRepository,
   ): Promise<void> {
-    const product = await this.productService.getProductById(input.productId);
+    const product = await productRepository.findById(input.productId);
 
     if (!product) {
       throw new ProductNotFoundError(input.productId);
     }
 
     const activeFlashSale =
-      await this.flashSaleService.findActiveFlashSaleByProductId(
+      await flashSaleRepository.findActiveFlashSaleByProductId(
         input.productId,
+        new Date(),
       );
 
     if (!activeFlashSale) {
@@ -47,7 +59,7 @@ export class PurchaseService {
     }
 
     const existingTransaction =
-      await this.transactionService.getTransactionByIdempotencyKeyAndUserId(
+      await transactionRepository.getTransactionByIdempotencyKeyAndUserId(
         input.idempotencyKey,
         input.userId,
       );
@@ -58,11 +70,9 @@ export class PurchaseService {
         input.userId,
       );
     }
+
+    // TODO: Decrement stock.
   }
 }
 
-export const purchaseService: PurchaseService = new PurchaseService(
-  productService,
-  flashSaleService,
-  transactionService,
-);
+export const purchaseService: PurchaseService = new PurchaseService(database);
