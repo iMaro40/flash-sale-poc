@@ -21,16 +21,23 @@ export const getTransactionHandler = async (
 
     if (!transaction) {
       return response.status(200).json({
+        code: "NO_PURCHASE",
         message: "User has not purchased the product",
       });
     }
 
     if (transaction.status === TransactionStatus.Pending) {
-      return response.status(200).json({ message: "Processing purchase" });
+      return response.status(200).json({
+        code: "TRANSACTION_PENDING",
+        message: "Processing purchase",
+      });
     }
 
     if (transaction.status === TransactionStatus.Completed) {
-      return response.status(200).json({ message: "Product purchased" });
+      return response.status(200).json({
+        code: "TRANSACTION_COMPLETE",
+        message: "Product purchased",
+      });
     }
 
     return response.status(200).json({ message: "Purchase failed" });
