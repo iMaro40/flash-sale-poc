@@ -1,4 +1,5 @@
 import { database } from "../database";
+import { ProductNotFoundError } from "../errors/product-not-found";
 import { FlashSaleOverlapError } from "../errors/flash-sale-overlap";
 import { productService, ProductService } from "../product/service";
 import type { CreateFlashSaleInput } from "./dto/create-flash-sale";
@@ -20,7 +21,7 @@ export class FlashSaleService {
         new Date(),
       );
 
-    // TO DO: Probably cache this as well.
+    // TO DO: Probably cache this?
 
     if (!flashSale) {
       return undefined;
@@ -36,7 +37,11 @@ export class FlashSaleService {
   }
 
   public async createFlashSale(input: CreateFlashSaleInput): Promise<void> {
-    await this.productService.getProductById(input.productId);
+    const product = await this.productService.getProductById(input.productId);
+
+    if (!product) {
+      throw new ProductNotFoundError(input.productId);
+    }
 
     const overlappingFlashSale =
       await this.flashSaleRepository.findOverlappingFlashSaleByProductId(input);

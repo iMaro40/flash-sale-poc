@@ -1,5 +1,3 @@
-export type Timestamptz = Date;
-
 export enum FlashSaleStatus {
   Upcoming = "upcoming",
   Active = "active",
@@ -9,7 +7,7 @@ export enum FlashSaleStatus {
 export interface FlashSale {
   id: string;
   productId: string;
-  startTime: Timestamptz;
-  endTime: Timestamptz;
+  startTime: Date;
+  endTime: Date;
   status: FlashSaleStatus;
 }

@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 
+import { ProductNotFoundError } from "../errors/product-not-found";
 import type { CreateProductInput } from "./dto/create-product";
 import { productService } from "./service";
 
@@ -28,6 +29,10 @@ export const getProductHandler = async (
       productId: string;
     };
     const product = await productService.getProductById(productId);
+
+    if (!product) {
+      throw new ProductNotFoundError(productId);
+    }
 
     return response.status(200).json(product);
   } catch (error) {
