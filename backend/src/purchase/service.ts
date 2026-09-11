@@ -43,6 +43,8 @@ export class PurchaseService {
         TransactionStatus.Completed,
       );
     });
+
+    // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
   }
 
   private async validatePurchaseProduct(

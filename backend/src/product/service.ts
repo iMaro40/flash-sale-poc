@@ -1,14 +1,14 @@
 import { database } from "../database";
 import { redisClient } from "../redis";
+import { ProductCache } from "./cache";
 import type { CreateProductInput } from "./dto/create-product";
 import type { Product } from "./model";
 import { ProductRepository } from "./repository";
-import type { RedisClientType } from "redis";
 
 export class ProductService {
   public constructor(
     private readonly productRepository: ProductRepository,
-    private readonly redis: RedisClientType,
+    private readonly productCache: ProductCache,
   ) {}
 
   public async createProduct(input: CreateProductInput): Promise<Product> {
@@ -16,19 +16,17 @@ export class ProductService {
   }
 
   public async getProductById(productId: string): Promise<Product | undefined> {
-    const cacheKey = `product:${productId}`;
-    const cachedProduct = await this.redis.get(cacheKey);
+    const cachedProduct = await this.productCache.getProductById(productId);
 
     if (cachedProduct) {
-      return JSON.parse(cachedProduct) as Product;
+      return cachedProduct;
     }
 
     const product: Product | undefined =
       await this.productRepository.findById(productId);
 
     if (product) {
-      // Arbitrary 5 minute TTL for this assignment. Can be longer/shorter depending on production use case
-      await this.redis.set(cacheKey, JSON.stringify(product), { EX: 300 });
+      await this.productCache.setProduct(product);
     }
 
     return product;
@@ -46,5 +44,5 @@ export class ProductService {
 
 export const productService: ProductService = new ProductService(
   new ProductRepository(database),
-  redisClient,
+  new ProductCache(redisClient),
 );
