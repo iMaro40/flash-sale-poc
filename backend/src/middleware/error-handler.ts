@@ -12,12 +12,14 @@ export const errorHandler: ErrorRequestHandler = (
     const statusCode = "statusCode" in error ? Number(error.statusCode) : 500;
 
     response.status(statusCode).json({
+      status: statusCode,
       message: error.message,
     });
     return;
   }
 
   response.status(500).json({
+    status: 500,
     message: "Internal server error",
   });
 };

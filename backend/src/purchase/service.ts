@@ -3,6 +3,7 @@ import type { Knex } from "knex";
 import { database } from "../database";
 import { TransactionAlreadyExistsError } from "../errors/transaction-already-exists";
 import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
+import { OutOfStockError } from "../errors/out-of-stock";
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { FlashSaleRepository } from "../flash-sale/repository";
 import { ProductRepository } from "../product/repository";
@@ -54,6 +55,10 @@ export class PurchaseService {
 
     if (!product) {
       throw new ProductNotFoundError(input.productId);
+    }
+
+    if (product.stock <= 0) {
+      throw new OutOfStockError(input.productId);
     }
 
     const activeFlashSale =
