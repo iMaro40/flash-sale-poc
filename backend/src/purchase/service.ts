@@ -1,11 +1,7 @@
 import type { Knex } from "knex";
 
 import { database } from "../database";
-import { TransactionAlreadyExistsError } from "../errors/transaction-already-exists";
-import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
 import { OutOfStockError } from "../errors/out-of-stock";
-import { ProductNotFoundError } from "../errors/product-not-found";
-import { FlashSaleRepository } from "../flash-sale/repository";
 import { ProductRepository } from "../product/repository";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
@@ -17,18 +13,8 @@ export class PurchaseService {
   public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
     await this.db.transaction(async (trx: Knex.Transaction): Promise<void> => {
       const productRepository: ProductRepository = new ProductRepository(trx);
-      const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository(
-        trx,
-      );
       const transactionRepository: TransactionRepository =
         new TransactionRepository(trx);
-
-      await this.validatePurchaseProduct(
-        input,
-        productRepository,
-        flashSaleRepository,
-        transactionRepository,
-      );
 
       const transaction = await transactionRepository.createPendingTransaction({
         idempotencyKey: input.idempotencyKey,
@@ -36,7 +22,13 @@ export class PurchaseService {
         userId: input.userId,
       });
 
-      await productRepository.decrementStockByProductId(input.productId);
+      const updatedRows = await productRepository.decrementStockByProductId(
+        input.productId,
+      );
+
+      if (updatedRows === 0) {
+        throw new OutOfStockError(input.productId);
+      }
 
       await transactionRepository.updateTransactionStatusById(
         transaction.id,
@@ -45,46 +37,6 @@ export class PurchaseService {
     });
 
     // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
-  }
-
-  private async validatePurchaseProduct(
-    input: PurchaseProductInput,
-    productRepository: ProductRepository,
-    flashSaleRepository: FlashSaleRepository,
-    transactionRepository: TransactionRepository,
-  ): Promise<void> {
-    const product = await productRepository.findById(input.productId);
-
-    if (!product) {
-      throw new ProductNotFoundError(input.productId);
-    }
-
-    if (product.stock <= 0) {
-      throw new OutOfStockError(input.productId);
-    }
-
-    const activeFlashSale =
-      await flashSaleRepository.findActiveFlashSaleByProductId(
-        input.productId,
-        new Date(),
-      );
-
-    if (!activeFlashSale) {
-      throw new ActiveFlashSaleNotFoundError(input.productId);
-    }
-
-    const existingTransaction =
-      await transactionRepository.getTransactionByIdempotencyKeyAndUserId(
-        input.idempotencyKey,
-        input.userId,
-      );
-
-    if (existingTransaction) {
-      throw new TransactionAlreadyExistsError(
-        input.idempotencyKey,
-        input.userId,
-      );
-    }
   }
 }
 

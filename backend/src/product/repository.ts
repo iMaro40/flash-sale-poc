@@ -18,9 +18,10 @@ export class ProductRepository {
     return product;
   }
 
-  public async decrementStockByProductId(productId: string): Promise<void> {
-    await this.db<Product>("products")
+  public async decrementStockByProductId(productId: string): Promise<number> {
+    return this.db<Product>("products")
       .where("id", productId)
+      .where("stock", ">", 0)
       .decrement("stock", 1);
   }
 }

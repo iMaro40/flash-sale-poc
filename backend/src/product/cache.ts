@@ -17,6 +17,7 @@ export class ProductCache {
       return JSON.parse(cachedProduct) as Product;
     } catch (e) {
       console.error("Failed to get product from cache", e);
+      return undefined;
     }
   }
 
@@ -27,6 +28,7 @@ export class ProductCache {
       });
     } catch (e) {
       console.error("Failed to set product in cache", e);
+      return undefined;
     }
   }
 }
