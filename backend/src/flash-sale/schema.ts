@@ -14,3 +14,7 @@ export const createFlashSaleRequestSchema = z
     message: "endTime must be in the future",
     path: ["endTime"],
   });
+
+export const getFlashSaleRequestSchema = z.object({
+  flashSaleId: z.uuid(),
+});

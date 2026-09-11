@@ -22,6 +22,14 @@ export class FlashSaleRepository {
     };
   }
 
+  public async findById(flashSaleId: string): Promise<FlashSale | undefined> {
+    const flashSale = await this.db<FlashSaleDbRow>("flash_sales")
+      .where("id", flashSaleId)
+      .first();
+
+    return flashSale ? this.mapToFlashSale(flashSale) : undefined;
+  }
+
   public async findActiveFlashSaleByProductId(
     productId: string,
     now: Date,
@@ -47,11 +55,15 @@ export class FlashSaleRepository {
     return flashSale ? this.mapToFlashSale(flashSale) : undefined;
   }
 
-  public async createFlashSale(input: CreateFlashSaleInput): Promise<void> {
-    await this.db<FlashSaleDbRow>("flash_sales").insert({
-      product_id: input.productId,
-      start_time: input.startTime,
-      end_time: input.endTime,
-    });
+  public async createFlashSale(input: CreateFlashSaleInput): Promise<string> {
+    const [flashSale] = await this.db<FlashSaleDbRow>("flash_sales")
+      .insert({
+        product_id: input.productId,
+        start_time: input.startTime,
+        end_time: input.endTime,
+      })
+      .returning("id");
+
+    return flashSale.id;
   }
 }

@@ -29,6 +29,12 @@ export class FlashSaleService {
     return FlashSaleStatus.Active;
   }
 
+  public async getFlashSaleById(
+    flashSaleId: string,
+  ): Promise<FlashSale | undefined> {
+    return this.flashSaleRepository.findById(flashSaleId);
+  }
+
   public async findActiveFlashSaleByProductId(
     productId: string,
   ): Promise<FlashSale | undefined> {
@@ -62,7 +68,7 @@ export class FlashSaleService {
     return activeFlashSale;
   }
 
-  public async createFlashSale(input: CreateFlashSaleInput): Promise<void> {
+  public async createFlashSale(input: CreateFlashSaleInput): Promise<string> {
     const product = await this.productService.getProductById(input.productId);
 
     if (!product) {
@@ -76,7 +82,7 @@ export class FlashSaleService {
       throw new FlashSaleOverlapError(input.productId);
     }
 
-    await this.flashSaleRepository.createFlashSale(input);
+    return this.flashSaleRepository.createFlashSale(input);
   }
 }
 
