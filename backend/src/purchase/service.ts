@@ -1,3 +1,4 @@
+import { TransactionAlreadyExistsError } from "../errors/transaction-already-exists";
 import { FlashSaleNotActiveError } from "../errors/flash-sale-not-active";
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { FlashSaleService, flashSaleService } from "../flash-sale/service";
@@ -6,6 +7,7 @@ import {
   TransactionService,
   transactionService,
 } from "../transactions/service";
+import type { PurchaseProductInput } from "./dto/purchase-product";
 
 export class PurchaseService {
   public constructor(
@@ -14,40 +16,48 @@ export class PurchaseService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  public async purchaseProduct(
-    productId: string,
-    userId: string,
-    idempotencyKey: string,
-  ): Promise<void> {
-    await this.validatePurchaseProduct(productId, userId);
+  public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
+    await this.validatePurchaseProduct(input);
 
     await this.transactionService.createPendingTransaction({
-      idempotencyKey,
-      productId,
-      userId,
+      idempotencyKey: input.idempotencyKey,
+      productId: input.productId,
+      userId: input.userId,
     });
 
     // TODO: Decrement stock.
   }
 
   private async validatePurchaseProduct(
-    productId: string,
-    _userId: string,
+    input: PurchaseProductInput,
   ): Promise<void> {
-    const product = await this.productService.getProductById(productId);
+    const product = await this.productService.getProductById(input.productId);
 
     if (!product) {
-      throw new ProductNotFoundError(productId);
+      throw new ProductNotFoundError(input.productId);
     }
 
     const activeFlashSale =
-      await this.flashSaleService.findActiveFlashSaleByProductId(productId);
+      await this.flashSaleService.findActiveFlashSaleByProductId(
+        input.productId,
+      );
 
     if (!activeFlashSale) {
-      throw new FlashSaleNotActiveError(productId);
+      throw new FlashSaleNotActiveError(input.productId);
     }
 
-    // TODO: Check if user has already purchased the product.
+    const existingTransaction =
+      await this.transactionService.getTransactionByIdempotencyKeyAndUserId(
+        input.idempotencyKey,
+        input.userId,
+      );
+
+    if (existingTransaction) {
+      throw new TransactionAlreadyExistsError(
+        input.idempotencyKey,
+        input.userId,
+      );
+    }
   }
 }
 

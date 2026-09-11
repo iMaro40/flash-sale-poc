@@ -25,6 +25,8 @@
 
 12. For Knex `GET`/read queries, pass the row type to query-builder operations, for example `db<DatabaseRow>("table_name")`. Explicit row types are not required for inserts unless needed for clarity.
 
+13. Repository methods should return domain model types, not database row types. Keep snake_case database fields and row-to-domain mapping internal to the repository.
+
 ## Execution Mode
 
 - Apply code changes directly without extra confirmation prompts.

@@ -9,5 +9,5 @@ export interface FlashSale {
   productId: string;
   startTime: Date;
   endTime: Date;
-  status: FlashSaleStatus;
+  status?: FlashSaleStatus;
 }

@@ -12,6 +12,20 @@ export class FlashSaleService {
     private readonly productService: ProductService,
   ) {}
 
+  private determineFlashSaleStatus(flashSale: FlashSale): FlashSaleStatus {
+    const now: Date = new Date();
+
+    if (flashSale.startTime > now) {
+      return FlashSaleStatus.Upcoming;
+    }
+
+    if (flashSale.endTime <= now) {
+      return FlashSaleStatus.Ended;
+    }
+
+    return FlashSaleStatus.Active;
+  }
+
   public async findActiveFlashSaleByProductId(
     productId: string,
   ): Promise<FlashSale | undefined> {
@@ -28,11 +42,8 @@ export class FlashSaleService {
     }
 
     return {
-      id: flashSale.id,
-      productId: flashSale.product_id,
-      startTime: flashSale.start_time,
-      endTime: flashSale.end_time,
-      status: FlashSaleStatus.Active,
+      ...flashSale,
+      status: this.determineFlashSaleStatus(flashSale),
     };
   }
 
