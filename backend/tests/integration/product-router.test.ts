@@ -1,8 +1,9 @@
 import request from "supertest";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { app } from "../../src/app";
 import { database } from "../../src/database";
+import { closeRedis, connectRedis } from "../../src/redis";
 
 interface ProductResponse {
   id: string;
@@ -13,6 +14,10 @@ interface ProductResponse {
 describe("product routes", () => {
   const createdProductIds: string[] = [];
 
+  beforeAll(async () => {
+    await connectRedis();
+  });
+
   afterAll(async () => {
     if (createdProductIds.length > 0) {
       await database<ProductResponse>("products")
@@ -21,6 +26,7 @@ describe("product routes", () => {
     }
 
     await database.destroy();
+    await closeRedis();
   });
 
   it("creates two products and retrieves the first one", async () => {
