@@ -11,7 +11,7 @@ interface ProductResponse {
   stock: number;
 }
 
-describe("product routes", () => {
+describe("public routes", () => {
   const createdProductIds: string[] = [];
 
   beforeAll(async () => {
@@ -29,28 +29,19 @@ describe("product routes", () => {
     await closeRedis();
   });
 
-  it("creates two products and retrieves the first one", async () => {
+  it("creates and retrieves a product", async () => {
     const firstProductInput = {
       name: `Integration Product One ${Date.now()}`,
       stock: 10,
-    };
-    const secondProductInput = {
-      name: `Integration Product Two ${Date.now()}`,
-      stock: 5,
     };
 
     const firstCreateResponse = await request(app)
       .post("/products")
       .send(firstProductInput)
       .expect(201);
-    const secondCreateResponse = await request(app)
-      .post("/products")
-      .send(secondProductInput)
-      .expect(201);
 
     const firstProduct = firstCreateResponse.body as ProductResponse;
-    const secondProduct = secondCreateResponse.body as ProductResponse;
-    createdProductIds.push(firstProduct.id, secondProduct.id);
+    createdProductIds.push(firstProduct.id);
 
     const getResponse = await request(app)
       .get(`/products/${firstProduct.id}`)
@@ -60,10 +51,19 @@ describe("product routes", () => {
       name: firstProductInput.name,
       stock: firstProductInput.stock,
     });
-    expect(secondProduct).toMatchObject({
-      name: secondProductInput.name,
-      stock: secondProductInput.stock,
-    });
     expect(getResponse.body).toEqual(firstProduct);
+  });
+
+  it("rejects invalid product input and returns not found for an unknown product", async () => {
+    await request(app)
+      .post("/products")
+      .send({ name: "", stock: -1 })
+      .expect(400);
+
+    const response = await request(app)
+      .get("/products/00000000-0000-0000-0000-000000000000")
+      .expect(404);
+
+    expect(response.body.message).toContain("Product not found");
   });
 });
