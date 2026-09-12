@@ -6,6 +6,8 @@ export async function up(knex: Knex): Promise<void> {
     table.string("idempotency_key").notNullable().unique();
     table.uuid("product_id").notNullable();
     table.string("user_id").notNullable();
+    table.unique(["user_id", "product_id"]);
+    table.foreign("product_id").references("id").inTable("products");
     table.string("status").notNullable().defaultTo("pending");
     table
       .timestamp("created_at", { useTz: true })

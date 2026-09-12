@@ -6,11 +6,17 @@ const indexName = "flash_sales_product_id_index";
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable("flash_sales", (table): void => {
     table.index(["product_id"], indexName);
+    table
+      .foreign("product_id")
+      .references("id")
+      .inTable("products")
+      .onDelete("CASCADE");
   });
 }
 
 export async function down(knex: Knex): Promise<void> {
   await knex.schema.alterTable("flash_sales", (table): void => {
+    table.dropForeign(["product_id"]);
     table.dropIndex(["product_id"], indexName);
   });
 }
