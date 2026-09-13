@@ -49,7 +49,10 @@ export const getTransactionHandler = async (
       });
     }
 
-    return response.status(200).json({ message: "Purchase failed" });
+    return response.status(200).json({
+      code: "TRANSACTION_PENDING",
+      message: "Processing purchase",
+    });
   } catch (error) {
     next(error);
   }

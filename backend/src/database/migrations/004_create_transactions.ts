@@ -18,8 +18,8 @@ export async function up(knex: Knex): Promise<void> {
       .notNullable()
       .defaultTo(knex.fn.now());
     table.check(
-      "?? IN (?, ?, ?)",
-      ["status", "PENDING", "COMPLETED", "FAILED"],
+      "?? IN (?, ?)",
+      ["status", "PENDING", "COMPLETED"],
       "transactions_status_check",
     );
   });
