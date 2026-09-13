@@ -71,6 +71,9 @@ export class ProductService {
     await this.productCache.releaseStockByProductId(input);
   }
 
+  // Simple reconciliation logic for demonstration purposes
+  // Has an edge case where stock might be incorrect if stock is updated while a purchase is being processed
+  // A more robust solution would maybe involve recording purchase attempts and firing specific events on expiration
   public async reconcileStock(): Promise<number> {
     const products = await this.productRepository.findAll();
 
