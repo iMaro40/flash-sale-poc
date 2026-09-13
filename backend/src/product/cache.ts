@@ -61,8 +61,8 @@ export class ProductCache {
 
       local newStock = redis.call('DECR', stockKey)
       if reservationKey then
-        -- Reserved stock key expires after 30 seconds
-        redis.call('SET', reservationKey, '1', 'EX', 30)
+        -- Reserved stock key expires after 2 minutes (120 seconds)
+        redis.call('SET', reservationKey, '1', 'EX', 120)
       end
 
       return newStock
@@ -98,8 +98,8 @@ export class ProductCache {
       local stockKey = KEYS[1]
       local reservationKey = KEYS[2]
 
-      redis.call('INCR', stockKey)
-      if reservationKey then
+      if reservationKey and redis.call('EXISTS', reservationKey) == 1 then
+        redis.call('INCR', stockKey)
         redis.call('DEL', reservationKey)
       end
     `;
