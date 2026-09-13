@@ -110,7 +110,7 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    await cache.incrementStockByProductId(product.id);
+    await cache.releaseStockByProductId(product.id);
 
     expect(redis.incr).toHaveBeenCalledWith(`product:stock:${product.id}`);
   });
@@ -121,7 +121,7 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    await expect(cache.incrementStockByProductId(product.id)).rejects.toThrow(
+    await expect(cache.releaseStockByProductId(product.id)).rejects.toThrow(
       "Redis unavailable",
     );
   });

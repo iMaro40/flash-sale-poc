@@ -72,7 +72,7 @@ export class PurchaseService {
       );
     } catch (error) {
       if (remainingCacheStock !== undefined) {
-        await this.productService.incrementStockByProductId(input.productId);
+        await this.productService.releaseStockByProductId(input.productId);
       }
       throw error;
     }

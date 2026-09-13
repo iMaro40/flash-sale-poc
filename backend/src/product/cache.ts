@@ -67,7 +67,7 @@ export class ProductCache {
     return numericResult;
   }
 
-  public async incrementStockByProductId(productId: string): Promise<void> {
+  public async releaseStockByProductId(productId: string): Promise<void> {
     await this.redis.incr(`product:stock:${productId}`);
   }
 }

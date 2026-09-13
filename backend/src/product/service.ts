@@ -43,8 +43,8 @@ export class ProductService {
     return this.productCache.reserveStockByProductId(productId);
   }
 
-  public async incrementStockByProductId(productId: string): Promise<void> {
-    await this.productCache.incrementStockByProductId(productId);
+  public async releaseStockByProductId(productId: string): Promise<void> {
+    await this.productCache.releaseStockByProductId(productId);
   }
 }
 

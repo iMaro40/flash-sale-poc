@@ -25,13 +25,13 @@ const createProductCache = (): {
   setProduct: ReturnType<typeof vi.fn>;
   deleteProduct: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
-  incrementStockByProductId: ReturnType<typeof vi.fn>;
+  releaseStockByProductId: ReturnType<typeof vi.fn>;
 } => ({
   getProductById: vi.fn(),
   setProduct: vi.fn(),
   deleteProduct: vi.fn(),
   reserveStockByProductId: vi.fn(),
-  incrementStockByProductId: vi.fn(),
+  releaseStockByProductId: vi.fn(),
 });
 
 describe("ProductService.getProductById", () => {
@@ -155,7 +155,7 @@ describe("ProductService.reserveStockByProductId", () => {
   });
 });
 
-describe("ProductService.incrementStockByProductId", () => {
+describe("ProductService.releaseStockByProductId", () => {
   it("delegates to ProductCache", async () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
@@ -164,9 +164,9 @@ describe("ProductService.incrementStockByProductId", () => {
       productCache as unknown as ProductCache,
     );
 
-    await service.incrementStockByProductId(product.id);
+    await service.releaseStockByProductId(product.id);
 
-    expect(productCache.incrementStockByProductId).toHaveBeenCalledWith(
+    expect(productCache.releaseStockByProductId).toHaveBeenCalledWith(
       product.id,
     );
   });
