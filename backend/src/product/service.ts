@@ -15,6 +15,7 @@ export class ProductService {
     return this.productRepository.create(input);
   }
 
+  // Gets from cache if available, otherwise fetches from the repository and caches it (cache-aside)
   public async getProductById(productId: string): Promise<Product | undefined> {
     const cachedProduct = await this.productCache.getProductById(productId);
 

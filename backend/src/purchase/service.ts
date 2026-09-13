@@ -7,39 +7,36 @@ import { OutOfStockError } from "../errors/out-of-stock";
 import { ProductAlreadyPurchasedError } from "../errors/product-already-purchased";
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { TransactionInProgressError } from "../errors/transaction-in-progress";
-import { FlashSaleRepository } from "../flash-sale/repository";
-import { ProductCache } from "../product/cache";
+import { flashSaleService, FlashSaleService } from "../flash-sale/service";
 import { ProductRepository } from "../product/repository";
-import { redisClient } from "../redis";
+import { productService, ProductService } from "../product/service";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
+import {
+  transactionService,
+  TransactionService,
+} from "../transactions/service";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 
 export class PurchaseService {
   public constructor(
     private readonly db: Knex,
-    private readonly productCache: ProductCache = new ProductCache(redisClient),
+    private readonly productService: ProductService,
+    private readonly flashSaleService: FlashSaleService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
+    const shouldProceed = await this.validatePurchaseProduct(input);
+
+    if (!shouldProceed) {
+      return;
+    }
+
     await this.db.transaction(async (trx: Knex.Transaction): Promise<void> => {
-      const flashSaleRepository: FlashSaleRepository = new FlashSaleRepository(
-        trx,
-      );
-      const productRepository: ProductRepository = new ProductRepository(trx);
       const transactionRepository: TransactionRepository =
         new TransactionRepository(trx);
-
-      const shouldProceed = await this.validatePurchaseProduct(
-        input,
-        productRepository,
-        flashSaleRepository,
-        transactionRepository,
-      );
-
-      if (!shouldProceed) {
-        return;
-      }
+      const productRepository: ProductRepository = new ProductRepository(trx);
 
       const transaction = await transactionRepository.createPendingTransaction({
         idempotencyKey: input.idempotencyKey,
@@ -61,18 +58,24 @@ export class PurchaseService {
       );
     });
 
-    await this.productCache.deleteProduct(input.productId);
+    await this.productService.deleteProductCache(input.productId);
 
     // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
   }
 
   private async validatePurchaseProduct(
     input: PurchaseProductInput,
-    productRepository: ProductRepository,
-    flashSaleRepository: FlashSaleRepository,
-    transactionRepository: TransactionRepository,
   ): Promise<boolean> {
-    const product = await productRepository.findById(input.productId);
+    const activeFlashSale =
+      await this.flashSaleService.findActiveFlashSaleByProductId(
+        input.productId,
+      );
+
+    if (!activeFlashSale) {
+      throw new ActiveFlashSaleNotFoundError(input.productId);
+    }
+
+    const product = await this.productService.getProductById(input.productId);
 
     if (!product) {
       throw new ProductNotFoundError(input.productId);
@@ -82,26 +85,14 @@ export class PurchaseService {
       throw new OutOfStockError(input.productId);
     }
 
-    const now = new Date();
-    const activeFlashSale =
-      await flashSaleRepository.findActiveFlashSaleByProductId(
-        input.productId,
-        now,
-      );
-
-    if (!activeFlashSale) {
-      throw new ActiveFlashSaleNotFoundError(input.productId);
-    }
-
-    return this.validateTransaction(input, transactionRepository);
+    return this.validateTransaction(input);
   }
 
   private async validateTransaction(
     input: PurchaseProductInput,
-    transactionRepository: TransactionRepository,
   ): Promise<boolean> {
     const existingTransaction =
-      await transactionRepository.getTransactionByUserIdAndProductId(
+      await this.transactionService.getTransactionByUserIdAndProductId(
         input.userId,
         input.productId,
       );
@@ -136,4 +127,9 @@ export class PurchaseService {
   }
 }
 
-export const purchaseService: PurchaseService = new PurchaseService(database);
+export const purchaseService: PurchaseService = new PurchaseService(
+  database,
+  productService,
+  flashSaleService,
+  transactionService,
+);
