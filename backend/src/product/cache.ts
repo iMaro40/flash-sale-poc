@@ -6,14 +6,17 @@ import type { Product } from "./model";
 export class ProductCache {
   public constructor(private readonly redis: RedisClientType) {}
 
-  public async getProductById(productId: string): Promise<Product | undefined> {
+  public async getProductById(
+    productId: string,
+  ): Promise<Omit<Product, "stock"> | undefined> {
+    // Stock uses separate Redis key
     const cachedProduct = await this.redis.get(`product:${productId}`);
 
     if (!cachedProduct) {
       return undefined;
     }
 
-    return JSON.parse(cachedProduct) as Product;
+    return JSON.parse(cachedProduct) as Omit<Product, "stock">;
   }
 
   public async setProduct(product: Product): Promise<void> {
@@ -39,6 +42,18 @@ export class ProductCache {
     stock: number,
   ): Promise<void> {
     await this.redis.set(`product:stock:${productId}`, stock.toString());
+  }
+
+  public async getStockByProductId(
+    productId: string,
+  ): Promise<number | undefined> {
+    const cachedStock = await this.redis.get(`product:stock:${productId}`);
+
+    if (cachedStock === null) {
+      return undefined;
+    }
+
+    return Number(cachedStock);
   }
 
   public async reserveStockByProductId(

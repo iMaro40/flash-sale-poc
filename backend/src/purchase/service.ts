@@ -33,11 +33,12 @@ export class PurchaseService {
       return;
     }
 
-    const remainingCacheStock = await this.productService.reserveStockByProductId({
-      productId: input.productId,
-      userId: input.userId,
-      idempotencyKey: input.idempotencyKey,
-    });
+    const remainingCacheStock =
+      await this.productService.reserveStockByProductId({
+        productId: input.productId,
+        userId: input.userId,
+        idempotencyKey: input.idempotencyKey,
+      });
 
     if (remainingCacheStock !== undefined && remainingCacheStock < 0) {
       throw new OutOfStockError(input.productId);
@@ -81,8 +82,6 @@ export class PurchaseService {
       });
       throw error;
     }
-
-    await this.productService.deleteProductCache(input.productId);
 
     // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
   }

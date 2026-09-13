@@ -22,9 +22,14 @@ export class ProductService {
   // Gets from cache if available, otherwise fetches from the repository and caches it (cache-aside)
   public async getProductById(productId: string): Promise<Product | undefined> {
     const cachedProduct = await this.productCache.getProductById(productId);
+    const cachedInventory =
+      await this.productCache.getStockByProductId(productId);
 
-    if (cachedProduct) {
-      return cachedProduct;
+    if (cachedProduct && cachedInventory !== undefined) {
+      return {
+        ...cachedProduct,
+        stock: cachedInventory,
+      };
     }
 
     const product: Product | undefined =
@@ -33,12 +38,14 @@ export class ProductService {
     if (product) {
       await this.productCache.setProduct(product);
     }
+    if (!cachedInventory) {
+      await this.productCache.setStockByProductId(
+        productId,
+        product?.stock ?? 0,
+      );
+    }
 
     return product;
-  }
-
-  public async deleteProductCache(productId: string): Promise<void> {
-    await this.productCache.deleteProduct(productId);
   }
 
   public async reserveStockByProductId(
