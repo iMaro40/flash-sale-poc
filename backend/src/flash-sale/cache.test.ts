@@ -8,7 +8,7 @@ const flashSale: FlashSale = {
   productId: "product-1",
   startTime: new Date("2026-09-12T10:00:00.000Z"),
   endTime: new Date("2026-09-12T11:00:00.000Z"),
-  status: FlashSaleStatus.Active,
+  status: FlashSaleStatus.ACTIVE,
 };
 
 describe("FlashSaleCache", () => {

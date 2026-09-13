@@ -60,6 +60,7 @@ export class TransactionRepository {
         idempotency_key: input.idempotencyKey,
         product_id: input.productId,
         user_id: input.userId,
+        status: TransactionStatus.PENDING,
       })
       .returning("*");
 

@@ -19,14 +19,14 @@ export class FlashSaleService {
     const now: Date = new Date();
 
     if (flashSale.startTime > now) {
-      return FlashSaleStatus.Upcoming;
+      return FlashSaleStatus.UPCOMING;
     }
 
-    if (flashSale.endTime <= now) {
-      return FlashSaleStatus.Ended;
+    if (flashSale.endTime < now) {
+      return FlashSaleStatus.ENDED;
     }
 
-    return FlashSaleStatus.Active;
+    return FlashSaleStatus.ACTIVE;
   }
 
   public async getFlashSaleById(

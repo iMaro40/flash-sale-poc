@@ -5,7 +5,6 @@ import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-fo
 import { ProductAlreadyPurchasedError } from "../errors/product-already-purchased";
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { OutOfStockError } from "../errors/out-of-stock";
-import { TransactionAlreadyExistsError } from "../errors/transaction-already-exists";
 import { FlashSaleRepository } from "../flash-sale/repository";
 import { ProductRepository } from "../product/repository";
 import { TransactionStatus } from "../transactions/model";
@@ -47,7 +46,7 @@ export class PurchaseService {
 
       await transactionRepository.updateTransactionStatusById(
         transaction.id,
-        TransactionStatus.Completed,
+        TransactionStatus.COMPLETED,
       );
     });
 
@@ -79,19 +78,6 @@ export class PurchaseService {
 
     if (!activeFlashSale) {
       throw new ActiveFlashSaleNotFoundError(input.productId);
-    }
-
-    const existingTransaction =
-      await transactionRepository.getTransactionByIdempotencyKeyAndUserId(
-        input.idempotencyKey,
-        input.userId,
-      );
-
-    if (existingTransaction) {
-      throw new TransactionAlreadyExistsError(
-        input.idempotencyKey,
-        input.userId,
-      );
     }
 
     const existingPurchase =

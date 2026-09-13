@@ -35,14 +35,14 @@ export const getTransactionHandler = async (
       });
     }
 
-    if (transaction.status === TransactionStatus.Pending) {
+    if (transaction.status === TransactionStatus.PENDING) {
       return response.status(200).json({
         code: "TRANSACTION_PENDING",
         message: "Processing purchase",
       });
     }
 
-    if (transaction.status === TransactionStatus.Completed) {
+    if (transaction.status === TransactionStatus.COMPLETED) {
       return response.status(200).json({
         code: "TRANSACTION_COMPLETE",
         message: "Product purchased",

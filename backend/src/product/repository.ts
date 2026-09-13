@@ -19,9 +19,16 @@ export class ProductRepository {
   }
 
   public async decrementStockByProductId(productId: string): Promise<number> {
-    return this.db<Product>("products")
-      .where("id", productId)
-      .where("stock", ">", 0)
-      .decrement("stock", 1);
+    try {
+      const result = await this.db<Product>("products")
+        .where("id", productId)
+        .where("stock", ">", 0)
+        .decrement("stock", 1);
+
+      return result;
+    } catch (error) {
+      console.error("Failed to decrement stock:", error);
+      throw error;
+    }
   }
 }

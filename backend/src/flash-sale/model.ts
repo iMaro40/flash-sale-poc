@@ -1,7 +1,7 @@
 export enum FlashSaleStatus {
-  Upcoming = "upcoming",
-  Active = "active",
-  Ended = "ended",
+  UPCOMING = "UPCOMING",
+  ACTIVE = "ACTIVE",
+  ENDED = "ENDED",
 }
 
 export interface FlashSale {

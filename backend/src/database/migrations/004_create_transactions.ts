@@ -8,7 +8,7 @@ export async function up(knex: Knex): Promise<void> {
     table.string("user_id").notNullable();
     table.unique(["user_id", "product_id"]);
     table.foreign("product_id").references("id").inTable("products");
-    table.string("status").notNullable().defaultTo("pending");
+    table.string("status").notNullable().defaultTo("PENDING");
     table
       .timestamp("created_at", { useTz: true })
       .notNullable()
@@ -19,7 +19,7 @@ export async function up(knex: Knex): Promise<void> {
       .defaultTo(knex.fn.now());
     table.check(
       "?? IN (?, ?, ?)",
-      ["status", "pending", "completed", "failed"],
+      ["status", "PENDING", "COMPLETED", "FAILED"],
       "transactions_status_check",
     );
   });

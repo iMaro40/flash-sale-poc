@@ -1,7 +1,7 @@
 export enum TransactionStatus {
-  Pending = "pending",
-  Completed = "completed",
-  Failed = "failed",
+  PENDING = "PENDING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
 }
 
 export interface Transaction {

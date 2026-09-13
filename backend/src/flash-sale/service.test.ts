@@ -100,7 +100,7 @@ describe("FlashSaleService.findActiveFlashSaleByProductId", () => {
 
     expect(result).toMatchObject({
       ...flashSale,
-      status: FlashSaleStatus.Active,
+      status: FlashSaleStatus.ACTIVE,
     });
     expect(repository.findActiveFlashSaleByProductId).not.toHaveBeenCalled();
   });
@@ -118,7 +118,7 @@ describe("FlashSaleService.findActiveFlashSaleByProductId", () => {
 
     expect(result).toMatchObject({
       ...flashSale,
-      status: FlashSaleStatus.Active,
+      status: FlashSaleStatus.ACTIVE,
     });
     expect(repository.findActiveFlashSaleByProductId).toHaveBeenCalledWith(
       product.id,
@@ -126,7 +126,7 @@ describe("FlashSaleService.findActiveFlashSaleByProductId", () => {
     );
     expect(cache.setActiveFlashSale).toHaveBeenCalledWith({
       ...flashSale,
-      status: FlashSaleStatus.Active,
+      status: FlashSaleStatus.ACTIVE,
     });
   });
 

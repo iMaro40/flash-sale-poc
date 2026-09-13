@@ -11,7 +11,7 @@ const transaction: Transaction = {
   idempotencyKey: "request-1",
   productId: "product-1",
   userId: "user-1",
-  status: TransactionStatus.Pending,
+  status: TransactionStatus.PENDING,
   createdAt: new Date("2026-09-12T10:00:00.000Z"),
   updatedAt: new Date("2026-09-12T10:00:00.000Z"),
 };
@@ -20,7 +20,6 @@ const createTransactionRepository = (): Record<
   string,
   ReturnType<typeof vi.fn>
 > => ({
-  getTransactionByIdempotencyKeyAndUserId: vi.fn(),
   getTransactionByUserIdAndProductId: vi.fn(),
   createPendingTransaction: vi.fn(),
   updateTransactionStatusById: vi.fn(),
@@ -39,21 +38,22 @@ const createService = (): {
 };
 
 describe("TransactionService lookups", () => {
-  it("returns a transaction by idempotency key and user", async () => {
+  it("returns a transaction by user and product", async () => {
     const { service, repository } = createService();
-    repository.getTransactionByIdempotencyKeyAndUserId.mockResolvedValue(
+    repository.getTransactionByUserIdAndProductId.mockResolvedValue(
       transaction,
     );
 
-    const result = await service.getTransactionByIdempotencyKeyAndUserId(
-      transaction.idempotencyKey,
+    const result = await service.getTransactionByUserIdAndProductId(
       transaction.userId,
+      transaction.productId,
     );
 
     expect(result).toEqual(transaction);
-    expect(
-      repository.getTransactionByIdempotencyKeyAndUserId,
-    ).toHaveBeenCalledWith(transaction.idempotencyKey, transaction.userId);
+    expect(repository.getTransactionByUserIdAndProductId).toHaveBeenCalledWith(
+      transaction.userId,
+      transaction.productId,
+    );
   });
 
   it("returns undefined when no user/product transaction exists", async () => {
@@ -96,12 +96,12 @@ describe("TransactionService.updateTransactionStatusById", () => {
 
     await service.updateTransactionStatusById(
       transaction.id,
-      TransactionStatus.Completed,
+      TransactionStatus.COMPLETED,
     );
 
     expect(repository.updateTransactionStatusById).toHaveBeenCalledWith(
       transaction.id,
-      TransactionStatus.Completed,
+      TransactionStatus.COMPLETED,
     );
   });
 
