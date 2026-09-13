@@ -23,6 +23,7 @@ export class ProductCache {
     await this.redis.set(
       `product:stock:${product.id}`,
       product.stock.toString(),
+      { NX: true },
     );
   }
 

@@ -13,7 +13,10 @@ export class ProductService {
   ) {}
 
   public async createProduct(input: CreateProductInput): Promise<Product> {
-    return this.productRepository.create(input);
+    const product = await this.productRepository.create(input);
+    // Prewarm product stock in Redis
+    await this.productCache.setProduct(product);
+    return product;
   }
 
   // Gets from cache if available, otherwise fetches from the repository and caches it (cache-aside)
@@ -41,7 +44,18 @@ export class ProductService {
   public async reserveStockByProductId(
     input: ReserveStockInput,
   ): Promise<number | undefined> {
-    return this.productCache.reserveStockByProductId(input);
+    let remainingStock = await this.productCache.reserveStockByProductId(input);
+
+    if (remainingStock === undefined) {
+      // Lazy pre-warming on cache miss
+      const product = await this.productRepository.findById(input.productId);
+      if (product) {
+        await this.productCache.setProduct(product);
+        remainingStock = await this.productCache.reserveStockByProductId(input);
+      }
+    }
+
+    return remainingStock;
   }
 
   public async releaseStockByProductId(

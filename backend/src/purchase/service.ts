@@ -44,6 +44,9 @@ export class PurchaseService {
       throw new OutOfStockError(input.productId);
     }
 
+    // NOTE: The CANCELED status for a transaction is more for when dealing with external payment providers
+    // In this assignment, we only mark transactions as COMPLETED after successfully decrementing stock
+
     try {
       await this.db.transaction(
         async (trx: Knex.Transaction): Promise<void> => {

@@ -101,7 +101,7 @@ describe("ProductService.getProductById", () => {
 });
 
 describe("ProductService.createProduct", () => {
-  it("returns the repository-created product", async () => {
+  it("returns the repository-created product and prewarms the cache", async () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
     const input: CreateProductInput = {
@@ -118,6 +118,7 @@ describe("ProductService.createProduct", () => {
 
     expect(result).toEqual(product);
     expect(productRepository.create).toHaveBeenCalledWith(input);
+    expect(productCache.setProduct).toHaveBeenCalledWith(product);
   });
 });
 
@@ -137,7 +138,7 @@ describe("ProductService.deleteProductCache", () => {
 });
 
 describe("ProductService.reserveStockByProductId", () => {
-  it("delegates to ProductCache", async () => {
+  it("delegates to ProductCache when stock key exists", async () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
     productCache.reserveStockByProductId.mockResolvedValue(9);
@@ -156,6 +157,32 @@ describe("ProductService.reserveStockByProductId", () => {
 
     expect(result).toBe(9);
     expect(productCache.reserveStockByProductId).toHaveBeenCalledWith(input);
+  });
+
+  it("lazy prewarms cache from DB and retries reservation on cache miss", async () => {
+    const productRepository = createProductRepository();
+    const productCache = createProductCache();
+    productCache.reserveStockByProductId
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(9);
+    productRepository.findById.mockResolvedValue(product);
+    const service = new ProductService(
+      productRepository as unknown as ProductRepository,
+      productCache as unknown as ProductCache,
+    );
+
+    const input = {
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    };
+
+    const result = await service.reserveStockByProductId(input);
+
+    expect(result).toBe(9);
+    expect(productRepository.findById).toHaveBeenCalledWith(product.id);
+    expect(productCache.setProduct).toHaveBeenCalledWith(product);
+    expect(productCache.reserveStockByProductId).toHaveBeenCalledTimes(2);
   });
 });
 
