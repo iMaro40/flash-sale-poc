@@ -30,6 +30,14 @@ export class FlashSaleRepository {
     return flashSale ? this.mapToFlashSale(flashSale) : undefined;
   }
 
+  public async findByProductId(productId: string): Promise<FlashSale[]> {
+    const flashSales = await this.db<FlashSaleDbRow>("flash_sales")
+      .where("product_id", productId)
+      .orderBy("start_time", "asc");
+
+    return flashSales.map((row) => this.mapToFlashSale(row));
+  }
+
   public async findActiveFlashSaleByProductId(
     productId: string,
     now: Date,

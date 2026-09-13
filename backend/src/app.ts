@@ -11,6 +11,11 @@ export const app: Express = express();
 
 app.use(cors());
 app.use(express.json());
+
+app.get("/health", (_request, response) => {
+  response.status(200).json({ status: "ok" });
+});
+
 app.use(flashSaleRouter);
 app.use(productRouter);
 app.use(purchaseRouter);

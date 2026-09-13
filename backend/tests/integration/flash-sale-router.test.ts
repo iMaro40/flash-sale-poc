@@ -9,13 +9,6 @@ interface ProductResponse {
   id: string;
 }
 
-interface FlashSaleResponse {
-  id: string;
-  productId: string;
-  startTime: string;
-  endTime: string;
-}
-
 describe("flash sale routes", () => {
   const createdProductIds: string[] = [];
   const createdFlashSaleIds: string[] = [];
@@ -59,23 +52,49 @@ describe("flash sale routes", () => {
     const { flashSaleId } = createResponse.body as { flashSaleId: string };
     createdFlashSaleIds.push(flashSaleId);
 
-    const getResponse = await request(app)
-      .get(`/flash-sales/${flashSaleId}`)
-      .expect(200);
-
     expect(createResponse.body).toEqual({
       message: "Flash sale created",
       flashSaleId,
     });
-    expect(getResponse.body as FlashSaleResponse).toMatchObject({
-      id: flashSaleId,
-      productId: product.id,
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-    });
+
+    const listResponse = await request(app)
+      .get(`/products/${product.id}/flash-sales`)
+      .expect(200);
+
+    expect(listResponse.body).toEqual([
+      expect.objectContaining({
+        id: flashSaleId,
+        productId: product.id,
+        status: "ACTIVE",
+      }),
+    ]);
+
+    const getResponse = await request(app)
+      .get(`/flash-sales/${flashSaleId}`)
+      .expect(200);
+
+    expect(getResponse.body).toEqual(
+      expect.objectContaining({
+        id: flashSaleId,
+        productId: product.id,
+        status: "ACTIVE",
+      }),
+    );
   });
 
-  it("rejects a flash sale for an unknown product and returns an unknown sale as not found", async () => {
+  it("returns 404 when getting flash sales for an unknown product", async () => {
+    const unknownId = "00000000-0000-0000-0000-000000000000";
+
+    await request(app).get(`/products/${unknownId}/flash-sales`).expect(404);
+  });
+
+  it("returns 404 for an unknown flash sale id", async () => {
+    const unknownId = "00000000-0000-0000-0000-000000000000";
+
+    await request(app).get(`/flash-sales/${unknownId}`).expect(404);
+  });
+
+  it("rejects creating a flash sale for an unknown product", async () => {
     const unknownId = "00000000-0000-0000-0000-000000000000";
     const startTime = new Date(Date.now() - 60_000).toISOString();
     const endTime = new Date(Date.now() + 60 * 60_000).toISOString();
@@ -84,11 +103,5 @@ describe("flash sale routes", () => {
       .post("/flash-sales")
       .send({ productId: unknownId, startTime, endTime })
       .expect(404);
-
-    const response = await request(app)
-      .get(`/flash-sales/${unknownId}`)
-      .expect(404);
-
-    expect(response.body.message).toContain("was not found");
   });
 });

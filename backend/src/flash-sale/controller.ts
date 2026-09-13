@@ -30,7 +30,25 @@ export const createFlashSaleHandler = async (
   }
 };
 
-export const getFlashSaleHandler = async (
+export const getFlashSalesByProductIdHandler = async (
+  _: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<Response | void> => {
+  try {
+    const { productId } = response.locals.requestData as {
+      productId: string;
+    };
+    const flashSales =
+      await flashSaleService.getFlashSalesByProductId(productId);
+
+    return response.status(200).json(flashSales);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getFlashSaleByIdHandler = async (
   _: Request,
   response: Response,
   next: NextFunction,

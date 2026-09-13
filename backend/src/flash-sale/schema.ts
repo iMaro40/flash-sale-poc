@@ -15,6 +15,10 @@ export const createFlashSaleRequestSchema = z
     path: ["endTime"],
   });
 
-export const getFlashSaleRequestSchema = z.object({
+export const getFlashSalesByProductIdRequestSchema = z.object({
+  productId: z.string(),
+});
+
+export const getFlashSaleByIdRequestSchema = z.object({
   flashSaleId: z.string(),
 });

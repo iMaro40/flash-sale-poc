@@ -32,7 +32,34 @@ export class FlashSaleService {
   public async getFlashSaleById(
     flashSaleId: string,
   ): Promise<FlashSale | undefined> {
-    return this.flashSaleRepository.findById(flashSaleId);
+    const flashSale = await this.flashSaleRepository.findById(flashSaleId);
+
+    if (!flashSale) {
+      return undefined;
+    }
+
+    return {
+      ...flashSale,
+      status: this.determineFlashSaleStatus(flashSale),
+    };
+  }
+
+  public async getFlashSalesByProductId(
+    productId: string,
+  ): Promise<FlashSale[]> {
+    const product = await this.productService.getProductById(productId);
+
+    if (!product) {
+      throw new ProductNotFoundError(productId);
+    }
+
+    const flashSales =
+      await this.flashSaleRepository.findByProductId(productId);
+
+    return flashSales.map((flashSale) => ({
+      ...flashSale,
+      status: this.determineFlashSaleStatus(flashSale),
+    }));
   }
 
   public async findActiveFlashSaleByProductId(

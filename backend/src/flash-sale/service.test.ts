@@ -28,6 +28,7 @@ const createFlashSaleRepository = (): Record<
   ReturnType<typeof vi.fn>
 > => ({
   findById: vi.fn(),
+  findByProductId: vi.fn(),
   findActiveFlashSaleByProductId: vi.fn(),
   findOverlappingFlashSaleByProductId: vi.fn(),
   createFlashSale: vi.fn(),
@@ -66,24 +67,64 @@ const createService = (): {
 };
 
 describe("FlashSaleService.getFlashSaleById", () => {
-  it("returns the repository result", async () => {
+  it("returns a flash sale with calculated status when found", async () => {
     const { service, repository } = createService();
-    const flashSale = createFlashSale();
+    const flashSale = createFlashSale({
+      startTime: new Date(Date.now() - 60_000),
+      endTime: new Date(Date.now() + 60_000),
+    });
     repository.findById.mockResolvedValue(flashSale);
 
-    const result = await service.getFlashSaleById(flashSale.id);
+    const result = await service.getFlashSaleById("flash-sale-1");
 
-    expect(result).toEqual(flashSale);
-    expect(repository.findById).toHaveBeenCalledWith(flashSale.id);
+    expect(result).toEqual({
+      ...flashSale,
+      status: FlashSaleStatus.ACTIVE,
+    });
+    expect(repository.findById).toHaveBeenCalledWith("flash-sale-1");
   });
 
-  it("returns undefined when the flash sale does not exist", async () => {
+  it("returns undefined when flash sale is not found", async () => {
     const { service, repository } = createService();
     repository.findById.mockResolvedValue(undefined);
 
-    const result = await service.getFlashSaleById("missing-id");
+    const result = await service.getFlashSaleById("missing-flash-sale-id");
 
     expect(result).toBeUndefined();
+    expect(repository.findById).toHaveBeenCalledWith("missing-flash-sale-id");
+  });
+});
+
+describe("FlashSaleService.getFlashSalesByProductId", () => {
+  it("returns flash sales for an existing product with calculated status", async () => {
+    const { service, productService, repository } = createService();
+    const flashSale = createFlashSale({
+      startTime: new Date(Date.now() - 60_000),
+      endTime: new Date(Date.now() + 60_000),
+    });
+    productService.getProductById.mockResolvedValue(product);
+    repository.findByProductId.mockResolvedValue([flashSale]);
+
+    const result = await service.getFlashSalesByProductId(product.id);
+
+    expect(result).toEqual([
+      {
+        ...flashSale,
+        status: FlashSaleStatus.ACTIVE,
+      },
+    ]);
+    expect(productService.getProductById).toHaveBeenCalledWith(product.id);
+    expect(repository.findByProductId).toHaveBeenCalledWith(product.id);
+  });
+
+  it("throws ProductNotFoundError when the product does not exist", async () => {
+    const { service, productService, repository } = createService();
+    productService.getProductById.mockResolvedValue(undefined);
+
+    await expect(
+      service.getFlashSalesByProductId("missing-product-id"),
+    ).rejects.toBeInstanceOf(ProductNotFoundError);
+    expect(repository.findByProductId).not.toHaveBeenCalled();
   });
 });
 
