@@ -34,6 +34,13 @@ export class ProductCache {
     ]);
   }
 
+  public async setStockByProductId(
+    productId: string,
+    stock: number,
+  ): Promise<void> {
+    await this.redis.set(`product:stock:${productId}`, stock.toString());
+  }
+
   public async reserveStockByProductId(
     input: ReserveStockInput,
   ): Promise<number | undefined> {

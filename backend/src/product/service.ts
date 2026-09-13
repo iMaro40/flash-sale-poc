@@ -63,6 +63,16 @@ export class ProductService {
   ): Promise<void> {
     await this.productCache.releaseStockByProductId(input);
   }
+
+  public async reconcileStock(): Promise<number> {
+    const products = await this.productRepository.findAll();
+
+    for (const product of products) {
+      await this.productCache.setStockByProductId(product.id, product.stock);
+    }
+
+    return products.length;
+  }
 }
 
 export const productService: ProductService = new ProductService(

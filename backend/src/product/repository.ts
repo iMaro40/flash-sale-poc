@@ -10,6 +10,10 @@ export class ProductRepository {
     return this.db<Product>("products").where("id", productId).first();
   }
 
+  public async findAll(): Promise<Product[]> {
+    return this.db<Product>("products").select("id", "name", "stock");
+  }
+
   public async create(input: CreateProductInput): Promise<Product> {
     const [product] = await this.db<Product>("products")
       .insert(input)
