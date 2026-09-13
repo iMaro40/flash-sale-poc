@@ -2,6 +2,7 @@ import { database } from "../database";
 import { redisClient } from "../redis";
 import { ProductCache } from "./cache";
 import type { CreateProductInput } from "./dto/create-product";
+import type { ReleaseStockInput, ReserveStockInput } from "./dto/reserve-stock";
 import type { Product } from "./model";
 import { ProductRepository } from "./repository";
 
@@ -38,13 +39,15 @@ export class ProductService {
   }
 
   public async reserveStockByProductId(
-    productId: string,
+    input: ReserveStockInput,
   ): Promise<number | undefined> {
-    return this.productCache.reserveStockByProductId(productId);
+    return this.productCache.reserveStockByProductId(input);
   }
 
-  public async releaseStockByProductId(productId: string): Promise<void> {
-    await this.productCache.releaseStockByProductId(productId);
+  public async releaseStockByProductId(
+    input: ReleaseStockInput,
+  ): Promise<void> {
+    await this.productCache.releaseStockByProductId(input);
   }
 }
 

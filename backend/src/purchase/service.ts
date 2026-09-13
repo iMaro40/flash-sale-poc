@@ -34,7 +34,11 @@ export class PurchaseService {
     }
 
     const remainingCacheStock =
-      await this.productService.reserveStockByProductId(input.productId);
+      await this.productService.reserveStockByProductId({
+        productId: input.productId,
+        userId: input.userId,
+        idempotencyKey: input.idempotencyKey,
+      });
 
     if (remainingCacheStock !== undefined && remainingCacheStock < 0) {
       throw new OutOfStockError(input.productId);
@@ -72,7 +76,11 @@ export class PurchaseService {
       );
     } catch (error) {
       if (remainingCacheStock !== undefined) {
-        await this.productService.releaseStockByProductId(input.productId);
+        await this.productService.releaseStockByProductId({
+          productId: input.productId,
+          userId: input.userId,
+          idempotencyKey: input.idempotencyKey,
+        });
       }
       throw error;
     }

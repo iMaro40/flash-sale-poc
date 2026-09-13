@@ -64,19 +64,26 @@ describe("ProductCache", () => {
     );
   });
 
-  it("decrements stock via Redis eval Lua script", async () => {
+  it("decrements stock via Redis eval Lua script with reservation key", async () => {
     const redis = {
       eval: vi.fn().mockResolvedValue(9),
     };
     const cache = new ProductCache(redis as never);
 
-    const remainingStock = await cache.reserveStockByProductId(product.id);
+    const remainingStock = await cache.reserveStockByProductId({
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    });
 
     expect(remainingStock).toBe(9);
     expect(redis.eval).toHaveBeenCalledWith(
       expect.stringContaining("redis.call('DECR'"),
       {
-        keys: [`product:stock:${product.id}`],
+        keys: [
+          `product:stock:${product.id}`,
+          `reservation:${product.id}:user-1:idem-1`,
+        ],
         arguments: [],
       },
     );
@@ -88,7 +95,11 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    const remainingStock = await cache.reserveStockByProductId(product.id);
+    const remainingStock = await cache.reserveStockByProductId({
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    });
 
     expect(remainingStock).toBeUndefined();
   });
@@ -99,30 +110,51 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    await expect(cache.reserveStockByProductId(product.id)).rejects.toThrow(
-      "Redis unavailable",
-    );
+    await expect(
+      cache.reserveStockByProductId({
+        productId: product.id,
+        userId: "user-1",
+        idempotencyKey: "idem-1",
+      }),
+    ).rejects.toThrow("Redis unavailable");
   });
 
-  it("increments stock in Redis", async () => {
+  it("releases stock in Redis via eval Lua script", async () => {
     const redis = {
-      incr: vi.fn().mockResolvedValue(10),
+      eval: vi.fn().mockResolvedValue(10),
     };
     const cache = new ProductCache(redis as never);
 
-    await cache.releaseStockByProductId(product.id);
+    await cache.releaseStockByProductId({
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    });
 
-    expect(redis.incr).toHaveBeenCalledWith(`product:stock:${product.id}`);
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringContaining("redis.call('INCR'"),
+      {
+        keys: [
+          `product:stock:${product.id}`,
+          `reservation:${product.id}:user-1:idem-1`,
+        ],
+        arguments: [],
+      },
+    );
   });
 
-  it("throws when Redis incr fails", async () => {
+  it("throws when Redis eval fails on releaseStock", async () => {
     const redis = {
-      incr: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+      eval: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
     };
     const cache = new ProductCache(redis as never);
 
-    await expect(cache.releaseStockByProductId(product.id)).rejects.toThrow(
-      "Redis unavailable",
-    );
+    await expect(
+      cache.releaseStockByProductId({
+        productId: product.id,
+        userId: "user-1",
+        idempotencyKey: "idem-1",
+      }),
+    ).rejects.toThrow("Redis unavailable");
   });
 });

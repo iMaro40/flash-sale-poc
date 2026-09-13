@@ -1,5 +1,6 @@
 import type { RedisClientType } from "redis";
 
+import type { ReleaseStockInput, ReserveStockInput } from "./dto/reserve-stock";
 import type { Product } from "./model";
 
 export class ProductCache {
@@ -36,10 +37,17 @@ export class ProductCache {
   }
 
   public async reserveStockByProductId(
-    productId: string,
+    input: ReserveStockInput,
   ): Promise<number | undefined> {
     const luaScript = `
       local stockKey = KEYS[1]
+      local reservationKey = KEYS[2]
+
+      if reservationKey and redis.call('EXISTS', reservationKey) == 1 then
+        local stock = redis.call('GET', stockKey)
+        return tonumber(stock) or 0
+      end
+
       local stock = redis.call('GET', stockKey)
 
       if not stock then
@@ -51,11 +59,21 @@ export class ProductCache {
         return -2
       end
 
-      return redis.call('DECR', stockKey)
+      local newStock = redis.call('DECR', stockKey)
+      if reservationKey then
+        redis.call('SET', reservationKey, '1', 'EX', 300)
+      end
+
+      return newStock
     `;
 
+    const keys = [
+      `product:stock:${input.productId}`,
+      `reservation:${input.productId}:${input.userId}:${input.idempotencyKey}`,
+    ];
+
     const result = await this.redis.eval(luaScript, {
-      keys: [`product:stock:${productId}`],
+      keys,
       arguments: [],
     });
 
@@ -67,7 +85,27 @@ export class ProductCache {
     return numericResult;
   }
 
-  public async releaseStockByProductId(productId: string): Promise<void> {
-    await this.redis.incr(`product:stock:${productId}`);
+  public async releaseStockByProductId(
+    input: ReleaseStockInput,
+  ): Promise<void> {
+    const keys = [
+      `product:stock:${input.productId}`,
+      `reservation:${input.productId}:${input.userId}:${input.idempotencyKey}`,
+    ];
+
+    const luaScript = `
+      local stockKey = KEYS[1]
+      local reservationKey = KEYS[2]
+
+      redis.call('INCR', stockKey)
+      if reservationKey then
+        redis.call('DEL', reservationKey)
+      end
+    `;
+
+    await this.redis.eval(luaScript, {
+      keys,
+      arguments: [],
+    });
   }
 }

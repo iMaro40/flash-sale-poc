@@ -146,12 +146,16 @@ describe("ProductService.reserveStockByProductId", () => {
       productCache as unknown as ProductCache,
     );
 
-    const result = await service.reserveStockByProductId(product.id);
+    const input = {
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    };
+
+    const result = await service.reserveStockByProductId(input);
 
     expect(result).toBe(9);
-    expect(productCache.reserveStockByProductId).toHaveBeenCalledWith(
-      product.id,
-    );
+    expect(productCache.reserveStockByProductId).toHaveBeenCalledWith(input);
   });
 });
 
@@ -164,10 +168,14 @@ describe("ProductService.releaseStockByProductId", () => {
       productCache as unknown as ProductCache,
     );
 
-    await service.releaseStockByProductId(product.id);
+    const input = {
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    };
 
-    expect(productCache.releaseStockByProductId).toHaveBeenCalledWith(
-      product.id,
-    );
+    await service.releaseStockByProductId(input);
+
+    expect(productCache.releaseStockByProductId).toHaveBeenCalledWith(input);
   });
 });
