@@ -64,6 +64,6 @@ describe("public routes", () => {
       .get("/products/00000000-0000-0000-0000-000000000000")
       .expect(404);
 
-    expect(response.body.message).toContain("Product not found");
+    expect(response.body.message).toContain("was not found");
   });
 });

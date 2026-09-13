@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
+import { ProductNotFoundError } from "../errors/product-not-found";
+import { productService } from "../product/service";
 import { TransactionStatus } from "./model";
 import { transactionService } from "./service";
 
@@ -13,6 +15,13 @@ export const getTransactionHandler = async (
       userId: string;
       productId: string;
     };
+
+    const product = await productService.getProductById(productId);
+
+    if (!product) {
+      throw new ProductNotFoundError(productId);
+    }
+
     const transaction =
       await transactionService.getTransactionByUserIdAndProductId(
         userId,

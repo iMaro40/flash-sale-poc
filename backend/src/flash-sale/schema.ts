@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createFlashSaleRequestSchema = z
   .object({
-    productId: z.uuid(),
+    productId: z.string(),
     startTime: z.coerce.date(),
     endTime: z.coerce.date(),
   })
@@ -16,5 +16,5 @@ export const createFlashSaleRequestSchema = z
   });
 
 export const getFlashSaleRequestSchema = z.object({
-  flashSaleId: z.uuid(),
+  flashSaleId: z.string(),
 });

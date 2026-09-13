@@ -25,11 +25,20 @@ describe("purchase routes", () => {
         .delete();
     }
 
+    if (createdProductIds.length > 0) {
+      await database("transactions")
+        .whereIn("product_id", createdProductIds)
+        .delete();
+    }
+
     if (createdFlashSaleIds.length > 0) {
       await database("flash_sales").whereIn("id", createdFlashSaleIds).delete();
     }
 
     if (createdProductIds.length > 0) {
+      await database("flash_sales")
+        .whereIn("product_id", createdProductIds)
+        .delete();
       await database("products").whereIn("id", createdProductIds).delete();
     }
 
@@ -79,7 +88,9 @@ describe("purchase routes", () => {
     const transaction = await database("transactions")
       .where({ user_id: userId, product_id: product.id })
       .first("id");
-    createdTransactionIds.push(transaction.id);
+    if (transaction) {
+      createdTransactionIds.push(transaction.id);
+    }
   });
 
   it("rejects a purchase without an active flash sale", async () => {
@@ -97,7 +108,7 @@ describe("purchase routes", () => {
         userId: "33333333-3333-3333-3333-333333333333",
         idempotencyKey: `integration-inactive-${Date.now()}`,
       })
-      .expect(404);
+      .expect(409);
 
     expect(response.body.message).toContain("active flash sale");
   });

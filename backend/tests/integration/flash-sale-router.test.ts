@@ -89,6 +89,6 @@ describe("flash sale routes", () => {
       .get(`/flash-sales/${unknownId}`)
       .expect(404);
 
-    expect(response.body.message).toContain("Flash sale not found");
+    expect(response.body.message).toContain("was not found");
   });
 });

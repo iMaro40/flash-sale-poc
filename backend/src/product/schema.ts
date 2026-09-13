@@ -6,5 +6,5 @@ export const createProductRequestSchema = z.object({
 });
 
 export const getProductRequestSchema = z.object({
-  productId: z.uuid(),
+  productId: z.string(),
 });

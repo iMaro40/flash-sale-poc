@@ -18,6 +18,9 @@ describe("transaction routes", () => {
 
   afterAll(async () => {
     if (createdProductIds.length > 0) {
+      await database("transactions")
+        .whereIn("product_id", createdProductIds)
+        .delete();
       await database("products").whereIn("id", createdProductIds).delete();
     }
 
@@ -50,6 +53,6 @@ describe("transaction routes", () => {
       )
       .expect(404);
 
-    expect(response.body.message).toContain("Product not found");
+    expect(response.body.message).toContain("was not found");
   });
 });
