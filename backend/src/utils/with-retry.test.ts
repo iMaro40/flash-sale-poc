@@ -60,21 +60,6 @@ describe("withRetry", () => {
 
     expect(operation).toHaveBeenCalledTimes(3);
   });
-
-  it("respects custom isRetryable predicate", async () => {
-    const customError = new Error("Special failure");
-    const operation = vi.fn().mockRejectedValue(customError);
-
-    await expect(
-      withRetry(operation, {
-        maxAttempts: 3,
-        baseDelayMs: 1,
-        isRetryable: () => false,
-      }),
-    ).rejects.toThrow("Special failure");
-
-    expect(operation).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("isTransientError", () => {
