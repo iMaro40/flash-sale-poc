@@ -38,10 +38,15 @@ export class FlashSaleService {
   public async findActiveFlashSaleByProductId(
     productId: string,
   ): Promise<FlashSale | undefined> {
+    const now = new Date();
     const cachedFlashSale =
       await this.flashSaleCache.getActiveFlashSaleByProductId(productId);
 
-    if (cachedFlashSale && cachedFlashSale.endTime > new Date()) {
+    if (
+      cachedFlashSale &&
+      cachedFlashSale.startTime <= now &&
+      cachedFlashSale.endTime > now
+    ) {
       return {
         ...cachedFlashSale,
         status: this.determineFlashSaleStatus(cachedFlashSale),
@@ -51,7 +56,7 @@ export class FlashSaleService {
     const flashSale =
       await this.flashSaleRepository.findActiveFlashSaleByProductId(
         productId,
-        new Date(),
+        now,
       );
 
     if (!flashSale) {

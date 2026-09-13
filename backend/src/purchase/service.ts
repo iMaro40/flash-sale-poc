@@ -2,19 +2,24 @@ import type { Knex } from "knex";
 
 import { database } from "../database";
 import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
+import { DuplicateTransactionError } from "../errors/duplicate-transaction";
 import { OutOfStockError } from "../errors/out-of-stock";
 import { ProductAlreadyPurchasedError } from "../errors/product-already-purchased";
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { TransactionInProgressError } from "../errors/transaction-in-progress";
 import { FlashSaleRepository } from "../flash-sale/repository";
+import { ProductCache } from "../product/cache";
 import { ProductRepository } from "../product/repository";
+import { redisClient } from "../redis";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
 import type { PurchaseProductInput } from "./dto/purchase-product";
-import { DuplicateTransactionError } from "../errors/duplicate-transaction";
 
 export class PurchaseService {
-  public constructor(private readonly db: Knex) {}
+  public constructor(
+    private readonly db: Knex,
+    private readonly productCache: ProductCache = new ProductCache(redisClient),
+  ) {}
 
   public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
     await this.db.transaction(async (trx: Knex.Transaction): Promise<void> => {
@@ -55,6 +60,8 @@ export class PurchaseService {
         TransactionStatus.COMPLETED,
       );
     });
+
+    await this.productCache.deleteProduct(input.productId);
 
     // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
   }

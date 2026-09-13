@@ -105,6 +105,24 @@ describe("FlashSaleService.findActiveFlashSaleByProductId", () => {
     expect(repository.findActiveFlashSaleByProductId).not.toHaveBeenCalled();
   });
 
+  it("ignores an upcoming cached flash sale and queries the repository", async () => {
+    const { service, cache, repository } = createService();
+    const upcomingFlashSale = createFlashSale({
+      startTime: new Date(Date.now() + 60_000),
+      endTime: new Date(Date.now() + 120_000),
+    });
+    cache.getActiveFlashSaleByProductId.mockResolvedValue(upcomingFlashSale);
+    repository.findActiveFlashSaleByProductId.mockResolvedValue(undefined);
+
+    const result = await service.findActiveFlashSaleByProductId(product.id);
+
+    expect(result).toBeUndefined();
+    expect(repository.findActiveFlashSaleByProductId).toHaveBeenCalledWith(
+      product.id,
+      expect.any(Date),
+    );
+  });
+
   it("loads and caches an active flash sale after a cache miss", async () => {
     const { service, cache, repository } = createService();
     const flashSale = createFlashSale({

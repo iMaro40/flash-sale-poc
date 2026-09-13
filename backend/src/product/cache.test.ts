@@ -24,9 +24,34 @@ describe("ProductCache", () => {
     const redis = {
       get: vi.fn(),
       set: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+      del: vi.fn(),
     };
     const cache = new ProductCache(redis as never);
 
     await expect(cache.setProduct(product)).resolves.toBeUndefined();
+  });
+
+  it("deletes a product from Redis", async () => {
+    const redis = {
+      get: vi.fn(),
+      set: vi.fn(),
+      del: vi.fn().mockResolvedValue(1),
+    };
+    const cache = new ProductCache(redis as never);
+
+    await cache.deleteProduct(product.id);
+
+    expect(redis.del).toHaveBeenCalledWith(`product:${product.id}`);
+  });
+
+  it("resolves without throwing when Redis del fails", async () => {
+    const redis = {
+      get: vi.fn(),
+      set: vi.fn(),
+      del: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+    };
+    const cache = new ProductCache(redis as never);
+
+    await expect(cache.deleteProduct(product.id)).resolves.toBeUndefined();
   });
 });

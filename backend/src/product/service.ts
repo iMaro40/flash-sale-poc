@@ -40,6 +40,10 @@ export class ProductService {
 
     return product?.stock;
   }
+
+  public async deleteProductCache(productId: string): Promise<void> {
+    await this.productCache.deleteProduct(productId);
+  }
 }
 
 export const productService: ProductService = new ProductService(

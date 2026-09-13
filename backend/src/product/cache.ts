@@ -31,4 +31,12 @@ export class ProductCache {
       return undefined;
     }
   }
+
+  public async deleteProduct(productId: string): Promise<void> {
+    try {
+      await this.redis.del(`product:${productId}`);
+    } catch (e) {
+      console.error("Failed to delete product from cache", e);
+    }
+  }
 }
