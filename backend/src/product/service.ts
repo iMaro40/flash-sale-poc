@@ -37,10 +37,10 @@ export class ProductService {
     await this.productCache.deleteProduct(productId);
   }
 
-  public async readAndDecrementStockByProductId(
+  public async reserveStockByProductId(
     productId: string,
   ): Promise<number | undefined> {
-    return this.productCache.readAndDecrementStockByProductId(productId);
+    return this.productCache.reserveStockByProductId(productId);
   }
 
   public async incrementStockByProductId(productId: string): Promise<void> {

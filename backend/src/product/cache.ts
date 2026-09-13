@@ -35,7 +35,7 @@ export class ProductCache {
     ]);
   }
 
-  public async readAndDecrementStockByProductId(
+  public async reserveStockByProductId(
     productId: string,
   ): Promise<number | undefined> {
     const luaScript = `
@@ -48,7 +48,7 @@ export class ProductCache {
 
       local currentStock = tonumber(stock)
       if currentStock <= 0 then
-        return 0
+        return -2
       end
 
       return redis.call('DECR', stockKey)

@@ -70,9 +70,7 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    const remainingStock = await cache.readAndDecrementStockByProductId(
-      product.id,
-    );
+    const remainingStock = await cache.reserveStockByProductId(product.id);
 
     expect(remainingStock).toBe(9);
     expect(redis.eval).toHaveBeenCalledWith(
@@ -90,9 +88,7 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    const remainingStock = await cache.readAndDecrementStockByProductId(
-      product.id,
-    );
+    const remainingStock = await cache.reserveStockByProductId(product.id);
 
     expect(remainingStock).toBeUndefined();
   });
@@ -103,9 +99,9 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    await expect(
-      cache.readAndDecrementStockByProductId(product.id),
-    ).rejects.toThrow("Redis unavailable");
+    await expect(cache.reserveStockByProductId(product.id)).rejects.toThrow(
+      "Redis unavailable",
+    );
   });
 
   it("increments stock in Redis", async () => {

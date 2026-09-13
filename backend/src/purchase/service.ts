@@ -34,11 +34,9 @@ export class PurchaseService {
     }
 
     const remainingCacheStock =
-      await this.productService.readAndDecrementStockByProductId(
-        input.productId,
-      );
+      await this.productService.reserveStockByProductId(input.productId);
 
-    if (remainingCacheStock === 0) {
+    if (remainingCacheStock !== undefined && remainingCacheStock < 0) {
       throw new OutOfStockError(input.productId);
     }
 
