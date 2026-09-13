@@ -2,14 +2,16 @@ import type { Knex } from "knex";
 
 import { database } from "../database";
 import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
+import { OutOfStockError } from "../errors/out-of-stock";
 import { ProductAlreadyPurchasedError } from "../errors/product-already-purchased";
 import { ProductNotFoundError } from "../errors/product-not-found";
-import { OutOfStockError } from "../errors/out-of-stock";
+import { TransactionInProgressError } from "../errors/transaction-in-progress";
 import { FlashSaleRepository } from "../flash-sale/repository";
 import { ProductRepository } from "../product/repository";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
 import type { PurchaseProductInput } from "./dto/purchase-product";
+import { DuplicateTransactionError } from "../errors/duplicate-transaction";
 
 export class PurchaseService {
   public constructor(private readonly db: Knex) {}
@@ -23,12 +25,16 @@ export class PurchaseService {
       const transactionRepository: TransactionRepository =
         new TransactionRepository(trx);
 
-      await this.validatePurchaseProduct(
+      const shouldProceed = await this.validatePurchaseProduct(
         input,
         productRepository,
         flashSaleRepository,
         transactionRepository,
       );
+
+      if (!shouldProceed) {
+        return;
+      }
 
       const transaction = await transactionRepository.createPendingTransaction({
         idempotencyKey: input.idempotencyKey,
@@ -58,7 +64,7 @@ export class PurchaseService {
     productRepository: ProductRepository,
     flashSaleRepository: FlashSaleRepository,
     transactionRepository: TransactionRepository,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const product = await productRepository.findById(input.productId);
 
     if (!product) {
@@ -80,15 +86,46 @@ export class PurchaseService {
       throw new ActiveFlashSaleNotFoundError(input.productId);
     }
 
-    const existingPurchase =
+    return this.validateTransaction(input, transactionRepository);
+  }
+
+  private async validateTransaction(
+    input: PurchaseProductInput,
+    transactionRepository: TransactionRepository,
+  ): Promise<boolean> {
+    const existingTransaction =
       await transactionRepository.getTransactionByUserIdAndProductId(
         input.userId,
         input.productId,
       );
 
-    if (existingPurchase) {
+    if (!existingTransaction) {
+      return true;
+    }
+
+    if (existingTransaction.status === TransactionStatus.COMPLETED) {
+      if (existingTransaction.idempotencyKey === input.idempotencyKey) {
+        // An existing COMPLETED transaction already exists so return false to indicate idempotent success.
+        return false;
+      }
+
       throw new ProductAlreadyPurchasedError(input.userId, input.productId);
     }
+
+    if (existingTransaction.status === TransactionStatus.PENDING) {
+      if (existingTransaction.idempotencyKey === input.idempotencyKey) {
+        throw new DuplicateTransactionError(input.idempotencyKey);
+      }
+
+      throw new TransactionInProgressError(input.productId);
+    }
+
+    if (existingTransaction.status === TransactionStatus.FAILED) {
+      // TODO: Handle retry logic for failed transactions
+      return true;
+    }
+
+    return true;
   }
 }
 
