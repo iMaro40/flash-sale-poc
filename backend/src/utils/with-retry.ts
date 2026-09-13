@@ -12,21 +12,27 @@ const DEFAULT_BASE_DELAY_MS = 50;
 const DEFAULT_MAX_DELAY_MS = 1000;
 const DEFAULT_FACTOR = 2;
 
-// TO DO: Change to reusable isRetryable param
+const RETRYABLE_PG_CODES = [
+  "40P01", // deadlock_detected
+  "40001", // serialization_failure
+  "08000", // connection_exception
+  "08003", // connection_does_not_exist
+  "08006", // connection_failure
+  "57P01", // admin_shutdown
+];
 
+const RETRYABLE_NETWORK_CODES = [
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EPIPE",
+  "EAI_AGAIN",
+];
+
+// Errors are not retryable by default. Only those we specifically identify as retryable are.
 export const isTransientError = (error: unknown): boolean => {
   if (!error || typeof error !== "object") {
     return false;
-  }
-
-  if (
-    "statusCode" in error &&
-    typeof (error as { statusCode: unknown }).statusCode === "number"
-  ) {
-    const statusCode = (error as { statusCode: number }).statusCode;
-    if (statusCode >= 400 && statusCode < 500) {
-      return false;
-    }
   }
 
   if (
@@ -34,33 +40,16 @@ export const isTransientError = (error: unknown): boolean => {
     typeof (error as { code: unknown }).code === "string"
   ) {
     const code = (error as { code: string }).code;
-    const retryablePgCodes = [
-      "40P01", // deadlock_detected
-      "40001", // serialization_failure
-      "08000", // connection_exception
-      "08003", // connection_does_not_exist
-      "08006", // connection_failure
-      "57P01", // admin_shutdown
-      "53300", // too_many_connections
-    ];
-
-    const retryableNetworkCodes = [
-      "ECONNRESET",
-      "ECONNREFUSED",
-      "ETIMEDOUT",
-      "EPIPE",
-      "EAI_AGAIN",
-    ];
 
     if (
-      retryablePgCodes.includes(code) ||
-      retryableNetworkCodes.includes(code)
+      RETRYABLE_PG_CODES.includes(code) ||
+      RETRYABLE_NETWORK_CODES.includes(code)
     ) {
       return true;
     }
   }
 
-  return true;
+  return false;
 };
 
 export const calculateBackoffDelay = (
