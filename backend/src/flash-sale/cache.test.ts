@@ -41,7 +41,7 @@ describe("FlashSaleCache", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("returns undefined instead of throwing when Redis get fails", async () => {
+  it("throws when Redis get fails", async () => {
     const redis = {
       get: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
       set: vi.fn(),
@@ -50,7 +50,7 @@ describe("FlashSaleCache", () => {
 
     await expect(
       cache.getActiveFlashSaleByProductId(flashSale.productId),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow("Redis unavailable");
   });
 
   it("stores an active flash sale with a five-minute TTL", async () => {
@@ -69,13 +69,15 @@ describe("FlashSaleCache", () => {
     );
   });
 
-  it("resolves without throwing when Redis set fails", async () => {
+  it("throws when Redis set fails", async () => {
     const redis = {
       get: vi.fn(),
       set: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
     };
     const cache = new FlashSaleCache(redis as never);
 
-    await expect(cache.setActiveFlashSale(flashSale)).resolves.toBeUndefined();
+    await expect(cache.setActiveFlashSale(flashSale)).rejects.toThrow(
+      "Redis unavailable",
+    );
   });
 });

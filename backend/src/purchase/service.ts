@@ -33,30 +33,51 @@ export class PurchaseService {
       return;
     }
 
-    await this.db.transaction(async (trx: Knex.Transaction): Promise<void> => {
-      const transactionRepository: TransactionRepository =
-        new TransactionRepository(trx);
-      const productRepository: ProductRepository = new ProductRepository(trx);
-
-      const transaction = await transactionRepository.createPendingTransaction({
-        idempotencyKey: input.idempotencyKey,
-        productId: input.productId,
-        userId: input.userId,
-      });
-
-      const updatedRows = await productRepository.decrementStockByProductId(
+    const remainingCacheStock =
+      await this.productService.readAndDecrementStockByProductId(
         input.productId,
       );
 
-      if (updatedRows === 0) {
-        throw new OutOfStockError(input.productId);
-      }
+    if (remainingCacheStock === 0) {
+      throw new OutOfStockError(input.productId);
+    }
 
-      await transactionRepository.updateTransactionStatusById(
-        transaction.id,
-        TransactionStatus.COMPLETED,
+    try {
+      await this.db.transaction(
+        async (trx: Knex.Transaction): Promise<void> => {
+          const transactionRepository: TransactionRepository =
+            new TransactionRepository(trx);
+          const productRepository: ProductRepository = new ProductRepository(
+            trx,
+          );
+
+          const transaction =
+            await transactionRepository.createPendingTransaction({
+              idempotencyKey: input.idempotencyKey,
+              productId: input.productId,
+              userId: input.userId,
+            });
+
+          const updatedRows = await productRepository.decrementStockByProductId(
+            input.productId,
+          );
+
+          if (updatedRows === 0) {
+            throw new OutOfStockError(input.productId);
+          }
+
+          await transactionRepository.updateTransactionStatusById(
+            transaction.id,
+            TransactionStatus.COMPLETED,
+          );
+        },
       );
-    });
+    } catch (error) {
+      if (remainingCacheStock !== undefined) {
+        await this.productService.incrementStockByProductId(input.productId);
+      }
+      throw error;
+    }
 
     await this.productService.deleteProductCache(input.productId);
 

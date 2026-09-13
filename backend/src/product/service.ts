@@ -33,17 +33,18 @@ export class ProductService {
     return product;
   }
 
-  public async getStockByProductId(
-    productId: string,
-  ): Promise<number | undefined> {
-    // TO DO: Cache this.
-    const product = await this.getProductById(productId);
-
-    return product?.stock;
-  }
-
   public async deleteProductCache(productId: string): Promise<void> {
     await this.productCache.deleteProduct(productId);
+  }
+
+  public async readAndDecrementStockByProductId(
+    productId: string,
+  ): Promise<number | undefined> {
+    return this.productCache.readAndDecrementStockByProductId(productId);
+  }
+
+  public async incrementStockByProductId(productId: string): Promise<void> {
+    await this.productCache.incrementStockByProductId(productId);
   }
 }
 
