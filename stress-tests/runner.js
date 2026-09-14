@@ -35,6 +35,24 @@ export function createPurchaseLoadTest(config) {
   const isRealOutOfStock = (res) =>
     res.status === 409 && res.body?.includes("out of stock");
 
+  // One Counter per 1s bucket of the run, so handleSummary can compute avg succeeded/s up to the
+  // moment stock ran out — real DB-bound throughput, not diluted by the post-depletion instant-
+  // rejection flood. Covers up to 120s of runtime.
+  const BUCKET_SECONDS = 1;
+  const MAX_BUCKETS = 120;
+  const succeededByBucket = Array.from(
+    { length: MAX_BUCKETS },
+    (_, index) => new Counter(`succeeded_bucket_${index}`),
+  );
+  const recordSucceededCompletion = (data) => {
+    const elapsedSeconds = (Date.now() - data.testStartMs) / 1000;
+    const bucketIndex = Math.min(
+      Math.floor(elapsedSeconds / BUCKET_SECONDS),
+      MAX_BUCKETS - 1,
+    );
+    succeededByBucket[bucketIndex].add(1);
+  };
+
   const options = {
     scenarios: {
       thundering_herd: {
@@ -107,6 +125,8 @@ export function createPurchaseLoadTest(config) {
       usersAttempted.add(1);
 
       const [first, second] = responses;
+      if (first.status === 201) recordSucceededCompletion(data);
+      if (second.status === 201) recordSucceededCompletion(data);
 
       // These are expected to conflict with each other regardless of real stock levels, so they're
       // excluded from the depletion-timestamp measurement.
@@ -132,6 +152,7 @@ export function createPurchaseLoadTest(config) {
     const res = http.post(`${baseUrl}/purchases`, body, params);
 
     usersAttempted.add(1);
+    if (res.status === 201) recordSucceededCompletion(data);
 
     if (res.status === 201) {
       purchased.add(1);
@@ -184,6 +205,24 @@ export function createPurchaseLoadTest(config) {
       totalRequests > 0 ? ((n / totalRequests) * 100).toFixed(1) : "0.0";
     const stockRanOutAtSeconds =
       data.metrics.out_of_stock_elapsed_seconds?.values.min;
+    const durationSecondsTotal = (data.state?.testRunDurationMs ?? 0) / 1000;
+
+    const succeededBucketCounts = succeededByBucket.map((_, index) =>
+      count(`succeeded_bucket_${index}`),
+    );
+
+    // Real DB capacity, comparable across profiles: avg succeeded/s only up to the moment stock ran
+    // out, so it isn't diluted by the post-depletion instant-rejection flood like whole-test RPS was.
+    const preDepletionSeconds = stockRanOutAtSeconds ?? durationSecondsTotal;
+    const preDepletionBucketCount = Math.min(
+      Math.ceil(preDepletionSeconds / BUCKET_SECONDS),
+      succeededBucketCounts.length,
+    );
+    const preDepletionSucceeded = succeededBucketCounts
+      .slice(0, preDepletionBucketCount)
+      .reduce((sum, value) => sum + value, 0);
+    const avgSucceededPerSecond =
+      preDepletionSeconds > 0 ? preDepletionSucceeded / preDepletionSeconds : 0;
 
     const lines = [
       "",
@@ -191,6 +230,8 @@ export function createPurchaseLoadTest(config) {
       "================================",
       `Max VUs:            ${maxVUs}`,
       `Total requests:      ${totalRequests}`,
+      "",
+      `Avg succeeded/s (pre-depletion): ${avgSucceededPerSecond.toFixed(1)}`,
       "",
       `Succeeded (201):     ${succeeded}  (${percent(succeeded)}%)`,
       `Out of stock (409):  ${outOfStockCount}  (${percent(outOfStockCount)}%)`,
@@ -215,16 +256,13 @@ export function createPurchaseLoadTest(config) {
     // Printed so the run.sh wrapper can pass this into the DB integrity check.
     console.log(`USERS_ATTEMPTED=${usersAttemptedCount}`);
 
-    const durationSecondsTotal = (data.state?.testRunDurationMs ?? 0) / 1000;
-    const rps =
-      durationSecondsTotal > 0 ? totalRequests / durationSecondsTotal : 0;
     // "Error rate" only counts unexpected failures, not the expected 409/429 rejections.
     const errorRatePercent =
       totalRequests > 0 ? (otherErrorCount / totalRequests) * 100 : 0;
 
     const jsonSummary = {
       durationSeconds: durationSecondsTotal.toFixed(1),
-      rps: rps.toFixed(1),
+      avgSucceededPerSecond: avgSucceededPerSecond.toFixed(1),
       avgLatencySeconds: durationSeconds("avg"),
       p95LatencySeconds: durationSeconds("p(95)"),
       p99LatencySeconds: durationSeconds("p(99)"),

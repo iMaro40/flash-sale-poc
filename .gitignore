@@ -147,3 +147,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Stress-test run artifacts (regenerated every run.sh invocation)
+stress-tests/.monitor-samples.csv
+stress-tests/.last-verification.json
+stress-tests/.last-k6-summary.json
+

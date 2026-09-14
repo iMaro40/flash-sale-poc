@@ -46,7 +46,7 @@ console.log("-".repeat(40));
 console.log("");
 console.log(`                     ${profile.toUpperCase()}`);
 console.log(`Duration             ${k6Summary.durationSeconds}s`);
-console.log(`RPS                  ${k6Summary.rps}`);
+console.log(`Avg succeeded/s      ${k6Summary.avgSucceededPerSecond}`);
 console.log(`avg latency          ${k6Summary.avgLatencySeconds}s`);
 console.log(`p95 latency          ${k6Summary.p95LatencySeconds}s`);
 console.log(`p99 latency          ${k6Summary.p99LatencySeconds}s`);
