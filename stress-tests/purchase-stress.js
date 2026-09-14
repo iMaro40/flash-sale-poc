@@ -3,13 +3,17 @@ import { check } from "k6";
 import { Counter } from "k6/metrics";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
-const INITIAL_STOCK = Number(__ENV.INITIAL_STOCK || 50);
+// Sized so stock survives the gradual ramp and part of the sustained spike, then runs out near the end of it.
+const INITIAL_STOCK = Number(__ENV.INITIAL_STOCK || 15000);
 
 // Custom metrics so the summary breaks results down by outcome, not just pass/fail.
 const purchased = new Counter("purchases_succeeded");
 const outOfStock = new Counter("purchases_out_of_stock");
 const rateLimited = new Counter("purchases_rate_limited");
 const otherErrors = new Counter("purchases_other_errors");
+// Every iteration uses a brand-new userId, so this counts unique users that attempted a
+// purchase — tracked client-side because rejected attempts (e.g. out of stock) never reach the DB.
+const usersAttempted = new Counter("users_attempted");
 
 export const options = {
   scenarios: {
@@ -17,9 +21,10 @@ export const options = {
       executor: "ramping-vus",
       startVUs: 0,
       stages: [
-        { duration: "5s", target: 50 },
-        { duration: "10s", target: 50 },
-        { duration: "5s", target: 0 },
+        { duration: "20s", target: 300 }, // 1. gradual increase
+        { duration: "10s", target: 1500 }, // 2. sharp spike in the middle
+        { duration: "40s", target: 1500 }, // 3. sustained spike (stock runs out partway through)
+        { duration: "10s", target: 0 }, // ramp down
       ],
     },
   },
@@ -76,6 +81,8 @@ export default function (data) {
     { headers: { "Content-Type": "application/json" } },
   );
 
+  usersAttempted.add(1);
+
   if (res.status === 201) {
     purchased.add(1);
   } else if (res.status === 409) {
@@ -103,13 +110,17 @@ export function teardown(data) {
 // Overriding handleSummary replaces k6's noisy default table with just what we care about.
 export function handleSummary(data) {
   const count = (name) => data.metrics[name]?.values.count ?? 0;
-  const duration = (stat) =>
-    data.metrics.http_req_duration?.values[stat]?.toFixed(2) ?? "n/a";
+  // http_req_duration values are in milliseconds; convert to seconds.
+  const durationSeconds = (stat) => {
+    const value = data.metrics.http_req_duration?.values[stat];
+    return value !== undefined ? (value / 1000).toFixed(3) : "n/a";
+  };
 
   const succeeded = count("purchases_succeeded");
   const outOfStockCount = count("purchases_out_of_stock");
   const rateLimitedCount = count("purchases_rate_limited");
   const otherErrorCount = count("purchases_other_errors");
+  const usersAttemptedCount = count("users_attempted");
   const totalRequests = data.metrics.http_reqs?.values.count ?? 0;
   const maxVUs = data.metrics.vus_max?.values.max ?? 0;
   const percent = (n) =>
@@ -127,9 +138,16 @@ export function handleSummary(data) {
     `Rate limited (429):  ${rateLimitedCount}  (${percent(rateLimitedCount)}%)`,
     `Other errors:        ${otherErrorCount}  (${percent(otherErrorCount)}%)`,
     "",
-    `Latency (ms)   avg=${duration("avg")}  p90=${duration("p(90)")}  p95=${duration("p(95)")}  max=${duration("max")}`,
+    "Latency (s)",
+    `  avg:  ${durationSeconds("avg")}`,
+    `  p90:  ${durationSeconds("p(90)")}`,
+    `  p95:  ${durationSeconds("p(95)")}`,
+    `  max:  ${durationSeconds("max")}`,
     "",
   ];
+
+  // Printed so the run.sh wrapper can pass this into the DB integrity check.
+  console.log(`USERS_ATTEMPTED=${usersAttemptedCount}`);
 
   return { stdout: lines.join("\n") + "\n" };
 }
