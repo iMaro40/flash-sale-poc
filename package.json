@@ -9,7 +9,8 @@
     "db:migrate": "npm --prefix backend run db:migrate",
     "test": "pnpm --filter backend exec vitest run",
     "test:integration": "pnpm --filter backend exec vitest run tests/integration",
-    "test:integration:setup": "pnpm docker:up && pnpm db:migrate && pnpm test:integration"
+    "test:integration:setup": "pnpm docker:up && pnpm db:migrate && pnpm test:integration",
+    "test:stress": "./stress-tests/run.sh"
   },
   "packageManager": "pnpm@8.10.2",
   "workspaces": [

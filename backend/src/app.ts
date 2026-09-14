@@ -12,7 +12,9 @@ export const app: Express = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(rateLimiter({ maxRequests: 5, windowSeconds: 1 }));
+// Arbitrarily high rate limit so that it doesn't interfere with stress tests. For production use case definitely set this to an arbitrary number
+// Also for production use case, might need some set up where we mock different IP's for each virtual user
+app.use(rateLimiter({ maxRequests: 500000, windowSeconds: 1 }));
 
 app.get("/health", (_request, response) => {
   response.status(200).json({ status: "ok" });
