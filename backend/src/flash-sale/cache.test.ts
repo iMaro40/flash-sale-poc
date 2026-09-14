@@ -33,7 +33,7 @@ describe("FlashSaleCache", () => {
     expect(result).toEqual(flashSale);
     expect(result?.startTime).toBeInstanceOf(Date);
     expect(result?.endTime).toBeInstanceOf(Date);
-    expect(redis.hGetAll).toHaveBeenCalledWith("flash-sale:{product-1}");
+    expect(redis.hGetAll).toHaveBeenCalledWith("flash-sale:product-1");
   });
 
   it("returns undefined on a cache miss", async () => {
@@ -72,7 +72,7 @@ describe("FlashSaleCache", () => {
 
     await cache.setActiveFlashSale(flashSale);
 
-    expect(redis.hSet).toHaveBeenCalledWith("flash-sale:{product-1}", {
+    expect(redis.hSet).toHaveBeenCalledWith("flash-sale:product-1", {
       id: flashSale.id,
       productId: flashSale.productId,
       startTime: flashSale.startTime.getTime().toString(),
@@ -80,7 +80,7 @@ describe("FlashSaleCache", () => {
       status: flashSale.status,
     });
     expect(redis.expireAt).toHaveBeenCalledWith(
-      "flash-sale:{product-1}",
+      "flash-sale:product-1",
       Math.ceil(flashSale.endTime.getTime() / 1000) + 24 * 60 * 60,
     );
   });

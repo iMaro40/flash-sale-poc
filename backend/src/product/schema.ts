@@ -6,5 +6,9 @@ export const createProductRequestSchema = z.object({
 });
 
 export const getProductRequestSchema = z.object({
-  productId: z.string(),
+  productId: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[^:]+$/, "must not contain ':'"),
 });

@@ -19,7 +19,7 @@ export class ProductService {
 
   public async createProduct(input: CreateProductInput): Promise<Product> {
     const product = await this.productRepository.create(input);
-    // Prewarm product stock in Redis
+    // Prewarm product details and stock in Redis
     await this.productCache.setProduct(product);
     return product;
   }

@@ -50,7 +50,7 @@ describe("ProductCache", () => {
 
     await cache.deleteProductDetails(product.id);
 
-    expect(redis.del).toHaveBeenCalledWith(`product:${product.id}`);
+    expect(redis.del).toHaveBeenCalledWith(`product:${product.id}:details`);
   });
 
   it("throws when Redis del fails", async () => {
@@ -88,10 +88,10 @@ describe("ProductCache", () => {
       expect.stringContaining("redis.call('DECR'"),
       {
         keys: [
-          `product:{${product.id}}:stock`,
-          `flash-sale:{${product.id}}`,
-          `product:{${product.id}}:buyer:user-1`,
-          `product:{${product.id}}:reservation:user-1:idem-1`,
+          `product:${product.id}:stock`,
+          `flash-sale:${product.id}`,
+          `product:${product.id}:buyer:user-1`,
+          `product:${product.id}:reservation:user-1:idem-1`,
         ],
         arguments: [expect.any(String), "idem-1"],
       },
@@ -147,9 +147,9 @@ describe("ProductCache", () => {
       expect.stringContaining("'completed:'"),
       {
         keys: [
-          `product:{${product.id}}:buyer:user-1`,
-          `product:{${product.id}}:reservation:user-1:idem-1`,
-          `flash-sale:{${product.id}}`,
+          `product:${product.id}:buyer:user-1`,
+          `product:${product.id}:reservation:user-1:idem-1`,
+          `flash-sale:${product.id}`,
         ],
         arguments: ["idem-1"],
       },
@@ -172,9 +172,9 @@ describe("ProductCache", () => {
       expect.stringContaining("redis.call('INCR'"),
       {
         keys: [
-          `product:{${product.id}}:stock`,
-          `product:{${product.id}}:buyer:user-1`,
-          `product:{${product.id}}:reservation:user-1:idem-1`,
+          `product:${product.id}:stock`,
+          `product:${product.id}:buyer:user-1`,
+          `product:${product.id}:reservation:user-1:idem-1`,
         ],
         arguments: ["idem-1"],
       },

@@ -2,7 +2,11 @@ import { z } from "zod";
 
 export const createFlashSaleRequestSchema = z
   .object({
-    productId: z.string(),
+    productId: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[^:]+$/, "must not contain ':'"),
     startTime: z.coerce.date(),
     endTime: z.coerce.date(),
   })
@@ -16,7 +20,11 @@ export const createFlashSaleRequestSchema = z
   });
 
 export const getFlashSalesByProductIdRequestSchema = z.object({
-  productId: z.string(),
+  productId: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[^:]+$/, "must not contain ':'"),
 });
 
 export const getFlashSaleByIdRequestSchema = z.object({
