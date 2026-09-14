@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "setup": "pnpm install",
+    "backend": "pnpm --filter backend dev",
+    "frontend": "pnpm --filter frontend dev",
     "server": "pnpm --filter backend dev",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",

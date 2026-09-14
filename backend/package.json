@@ -12,7 +12,8 @@
     "test": "vitest run",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "worker:purchase": "tsx src/jobs/purchase-worker.ts"
+    "worker:purchase": "tsx src/jobs/purchase-worker.ts",
+    "worker:reconcile-stock": "tsx src/jobs/reconcile-stock-worker.ts"
   },
   "keywords": [],
   "author": "",

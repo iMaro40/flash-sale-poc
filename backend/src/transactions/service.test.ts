@@ -20,6 +20,7 @@ const createTransactionRepository = (): Record<
   string,
   ReturnType<typeof vi.fn>
 > => ({
+  findPendingTransactionsCreatedBefore: vi.fn(),
   getTransactionByUserIdAndProductId: vi.fn(),
   createPendingTransaction: vi.fn(),
   updateTransactionStatusById: vi.fn(),
@@ -38,6 +39,21 @@ const createService = (): {
 };
 
 describe("TransactionService lookups", () => {
+  it("returns pending transactions created before the cutoff", async () => {
+    const { service, repository } = createService();
+    const cutoff = new Date("2026-09-15T10:05:00.000Z");
+    repository.findPendingTransactionsCreatedBefore.mockResolvedValue([
+      transaction,
+    ]);
+
+    const result = await service.getPendingTransactionsCreatedBefore(cutoff);
+
+    expect(result).toEqual([transaction]);
+    expect(
+      repository.findPendingTransactionsCreatedBefore,
+    ).toHaveBeenCalledWith(cutoff);
+  });
+
   it("returns a transaction by user and product", async () => {
     const { service, repository } = createService();
     repository.getTransactionByUserIdAndProductId.mockResolvedValue(

@@ -13,6 +13,14 @@ export class TransactionService {
     return this.transactionRepository.findAll();
   }
 
+  public async getPendingTransactionsCreatedBefore(
+    cutoff: Date,
+  ): Promise<Transaction[]> {
+    return this.transactionRepository.findPendingTransactionsCreatedBefore(
+      cutoff,
+    );
+  }
+
   public async getTransactionByIdempotencyKeyAndUserId(
     idempotencyKey: string,
     userId: string,

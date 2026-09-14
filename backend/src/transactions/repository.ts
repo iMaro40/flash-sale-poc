@@ -37,6 +37,19 @@ export class TransactionRepository {
     return transactions.map((row) => this.mapToTransaction(row));
   }
 
+  public async findPendingTransactionsCreatedBefore(
+    cutoff: Date,
+  ): Promise<Transaction[]> {
+    const transactions = await this.db<TransactionDbRow>("transactions")
+      .select("*")
+      .where("status", TransactionStatus.PENDING)
+      .andWhere("created_at", "<", cutoff)
+      .orderBy("created_at", "asc")
+      .orderBy("id", "asc");
+
+    return transactions.map((row) => this.mapToTransaction(row));
+  }
+
   public async getTransactionByIdempotencyKeyAndUserId(
     idempotencyKey: string,
     userId: string,
