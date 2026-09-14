@@ -5,6 +5,7 @@ set -uo pipefail
 
 OUT_FILE="$1"
 PORT="${PORT:-3000}"
+WORKER_METRICS_PORT="${WORKER_METRICS_PORT:-3001}"
 
 : > "$OUT_FILE"
 # Trailing final_stock/transactions_*/unique_users_*/completion_* columns are left blank here and
@@ -28,8 +29,9 @@ while true; do
   REDIS_MEM=$(echo "$REDIS_STATS" | cut -d, -f2 | cut -d/ -f1 | tr -d ' ')
 
   # Time spent waiting for a pool connection (not the same as PG_LOCK_WAITS above, which is time
-  # spent waiting on a row lock after a connection was already acquired).
-  POOL_STATS_JSON=$(curl -s "http://localhost:$PORT/internal/db-pool-stats" 2>/dev/null)
+  # spent waiting on a row lock after a connection was already acquired). Polled from the
+  # purchase-worker, not the API server, since that's the process actually contending on the row lock.
+  POOL_STATS_JSON=$(curl -s "http://localhost:$WORKER_METRICS_PORT/internal/db-pool-stats" 2>/dev/null)
   POOL_FIELDS=$(node -e '
     try {
       const stats = JSON.parse(process.argv[1]);
