@@ -6,8 +6,8 @@ import { closeDatabase } from "../database";
 import { closeRedis, connectRedis } from "../redis";
 import { connectRabbitMQ, createConsumerChannel } from "../rabbitmq";
 import { assertPurchaseQueue, PURCHASE_QUEUE } from "../rabbitmq/queues";
-import type { QueuedPurchase } from "../purchase/dto/queued-purchase";
 import { purchaseService } from "../purchase/service";
+import { processPurchaseMessage } from "./purchase-worker-handler";
 
 // Caps how many purchase DB writes can run at the same time, regardless of how
 // many purchase requests were accepted upstream. This is the actual rate limiter into Postgres.
@@ -36,36 +36,7 @@ const startWorker = async (): Promise<void> => {
         return;
       }
 
-      void (async (): Promise<void> => {
-        try {
-          const queuedPurchase = JSON.parse(
-            message.content.toString(),
-          ) as QueuedPurchase;
-
-          await purchaseService.completePurchase(
-            queuedPurchase.input,
-            queuedPurchase.transactionId,
-          );
-          channel.ack(message);
-        } catch (error) {
-          console.error("[purchase-worker] Failed to process purchase", error);
-          try {
-            const queuedPurchase = JSON.parse(
-              message.content.toString(),
-            ) as QueuedPurchase;
-            await purchaseService.cancelPurchase(
-              queuedPurchase.transactionId,
-              queuedPurchase.input,
-            );
-          } catch (cancellationError) {
-            console.error(
-              "[purchase-worker] Failed to cancel purchase",
-              cancellationError,
-            );
-          }
-          channel.nack(message, false, false);
-        }
-      })();
+      void processPurchaseMessage(message, channel, purchaseService);
     },
   );
 };

@@ -82,6 +82,7 @@ export class PurchaseService {
           if (!transaction) {
             throw new Error(`Transaction not found: ${transactionId}`);
           }
+          // Important checks to prevent retries from incorrectly decrementing stock
           if (transaction.status === TransactionStatus.COMPLETED) {
             return;
           }
