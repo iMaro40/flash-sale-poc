@@ -3,8 +3,8 @@ import { check } from "k6";
 import { Counter } from "k6/metrics";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
-// Sized so stock survives the gradual ramp and part of the sustained spike, then runs out near the end of it.
-const INITIAL_STOCK = Number(__ENV.INITIAL_STOCK || 15000);
+// Tuned from observed sustained throughput (~570 completions/sec) so stock runs out near the end of the sustained spike, not before or never.
+const INITIAL_STOCK = Number(__ENV.INITIAL_STOCK || 18000);
 
 // Custom metrics so the summary breaks results down by outcome, not just pass/fail.
 const purchased = new Counter("purchases_succeeded");
@@ -21,10 +21,10 @@ export const options = {
       executor: "ramping-vus",
       startVUs: 0,
       stages: [
-        { duration: "20s", target: 300 }, // 1. gradual increase
-        { duration: "10s", target: 1500 }, // 2. sharp spike in the middle
-        { duration: "40s", target: 1500 }, // 3. sustained spike (stock runs out partway through)
-        { duration: "10s", target: 0 }, // ramp down
+        { duration: "10s", target: 300 }, // 1. gradual increase
+        { duration: "5s", target: 1500 }, // 2. sharp spike in the middle
+        { duration: "20s", target: 1500 }, // 3. sustained spike (stock runs out near the end of this)
+        { duration: "5s", target: 0 }, // ramp down
       ],
     },
   },

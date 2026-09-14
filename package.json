@@ -10,7 +10,8 @@
     "test": "pnpm --filter backend exec vitest run",
     "test:integration": "pnpm --filter backend exec vitest run tests/integration",
     "test:integration:setup": "pnpm docker:up && pnpm db:migrate && pnpm test:integration",
-    "test:stress": "./stress-tests/run.sh"
+    "test:stress": "./stress-tests/run.sh",
+    "monitor:db": "watch -n1 \"docker exec flash-sale-postgres psql -U postgres -d flash_sale -c \\\"SELECT state, LEFT(COALESCE(wait_event_type, ''), 17) AS wait_event_type, LEFT(COALESCE(wait_event, ''), 25) AS wait_event, count(*) FROM pg_stat_activity WHERE datname='flash_sale' GROUP BY state, wait_event_type, wait_event ORDER BY count(*) DESC;\\\"\""
   },
   "packageManager": "pnpm@8.10.2",
   "workspaces": [
