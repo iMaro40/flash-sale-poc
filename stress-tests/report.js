@@ -45,6 +45,7 @@ const poolMaxAcquireSeconds = column(9);
 const lockWaitAvgSeconds = column(10);
 const lockWaitP95Seconds = column(11);
 const lockWaitMaxSeconds = column(12);
+const workerActiveConnections = column(22);
 
 console.log("");
 console.log("FLASH SALE LOAD TEST");
@@ -52,7 +53,9 @@ console.log("-".repeat(40));
 console.log("");
 console.log(`                     ${profile.toUpperCase()}`);
 console.log(`Duration             ${k6Summary.durationSeconds}s`);
-console.log(`Avg accepted/s       ${k6Summary.avgAcceptedPerSecond}  (admission only, see INTEGRITY below for real completions/s)`);
+console.log(
+  `Avg accepted/s       ${k6Summary.avgAcceptedPerSecond}  (admission only, see INTEGRITY below for real completions/s)`,
+);
 console.log(`avg admit latency    ${k6Summary.avgLatencySeconds}s`);
 console.log(`p95 admit latency    ${k6Summary.p95LatencySeconds}s`);
 console.log(`p99 admit latency    ${k6Summary.p99LatencySeconds}s`);
@@ -66,9 +69,9 @@ console.log(`Memory avg           ${(avg(nodeMemKb) / 1024).toFixed(0)}MB`);
 console.log(`Memory peak          ${(peak(nodeMemKb) / 1024).toFixed(0)}MB`);
 console.log("");
 console.log("POSTGRES");
-console.log(`Active connections   ${avg(pgActive).toFixed(0)}`);
+console.log(`Active sessions (DB) ${avg(pgActive).toFixed(0)}`);
 console.log(
-  `Pool utilization     ${((avg(pgActive) / POOL_MAX) * 100).toFixed(0)}%`,
+  `Worker pool use     ${avg(workerActiveConnections).toFixed(1)} avg / ${peak(workerActiveConnections)} peak of ${POOL_MAX}`,
 );
 console.log(`Lock waits           ${peak(pgLockWaits)}`);
 console.log(`Pending acquires     ${peak(poolPendingAcquires)}`);
@@ -93,17 +96,47 @@ console.log(`Memory               ${lastRedisMem}`);
 console.log("");
 
 if (integrityRow) {
-  const [, , , , , , , , , , , , , finalStock, transactionsTotal, transactionsCompleted, usersAttempted, uniqueUsersCompleted, avgCompletedPerSecond, peakCompletedPerSecond, avgCompletionLatencySeconds, p95CompletionLatencySeconds] =
-    integrityRow;
-  console.log("INTEGRITY (real DB-derived completion metrics, not k6 request-side metrics)");
+  const [
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    finalStock,
+    transactionsTotal,
+    transactionsCompleted,
+    usersAttempted,
+    uniqueUsersCompleted,
+    avgCompletedPerSecond,
+    avgCompletionLatencySeconds,
+    p95CompletionLatencySeconds,
+    p99CompletionLatencySeconds,
+  ] = integrityRow;
+  console.log(
+    "INTEGRITY (real DB-derived completion metrics, not k6 request-side metrics)",
+  );
   console.log(`Final stock (DB)     ${finalStock}`);
   console.log(`Transactions total   ${transactionsTotal}`);
   console.log(`Transactions done    ${transactionsCompleted}`);
   console.log(`Users attempted      ${usersAttempted}`);
   console.log(`Users completed      ${uniqueUsersCompleted}`);
   console.log(`Avg completed/s      ${avgCompletedPerSecond ?? "n/a"}`);
-  console.log(`Peak completed/s     ${peakCompletedPerSecond ?? "n/a"}`);
-  console.log(`Avg completion latency (admit->commit)  ${avgCompletionLatencySeconds || "n/a"}s`);
-  console.log(`p95 completion latency (admit->commit)  ${p95CompletionLatencySeconds || "n/a"}s`);
+  console.log(
+    `Avg completion latency (admit->commit)  ${avgCompletionLatencySeconds || "n/a"}s`,
+  );
+  console.log(
+    `p95 completion latency (admit->commit)  ${p95CompletionLatencySeconds || "n/a"}s`,
+  );
+  console.log(
+    `p99 completion latency (admit->commit)  ${p99CompletionLatencySeconds || "n/a"}s`,
+  );
   console.log("");
 }

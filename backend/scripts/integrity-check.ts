@@ -64,17 +64,16 @@ const run = async (): Promise<void> => {
     .where("product_id", productId)
     .andWhere("status", "COMPLETED")
     .select(
-      database.raw("EXTRACT(EPOCH FROM (updated_at - created_at)) as latency_seconds"),
+      database.raw(
+        "EXTRACT(EPOCH FROM (updated_at - created_at)) as latency_seconds",
+      ),
     );
   const completionLatenciesSeconds = completionRows
     .map((row) => Number(row.latency_seconds))
     .sort((a, b) => a - b);
   const percentile = (values: number[], p: number): number | undefined => {
     if (values.length === 0) return undefined;
-    const index = Math.min(
-      values.length - 1,
-      Math.floor(p * values.length),
-    );
+    const index = Math.min(values.length - 1, Math.floor(p * values.length));
     return values[index];
   };
   const avgLatencySeconds =
@@ -89,14 +88,13 @@ const run = async (): Promise<void> => {
     .select("updated_at as completed_at");
   const completionsPerSecondBucket = new Map<number, number>();
   for (const row of throughputRows) {
-    const bucketMs = Math.floor(new Date(row.completed_at).getTime() / 1000) * 1000;
+    const bucketMs =
+      Math.floor(new Date(row.completed_at).getTime() / 1000) * 1000;
     completionsPerSecondBucket.set(
       bucketMs,
       (completionsPerSecondBucket.get(bucketMs) ?? 0) + 1,
     );
   }
-  const bucketValues = [...completionsPerSecondBucket.values()];
-  const peakCompletedPerSecond = bucketValues.length > 0 ? Math.max(...bucketValues) : 0;
   const activeSeconds = completionsPerSecondBucket.size;
   const avgCompletedPerSecond =
     activeSeconds > 0 ? completed / activeSeconds : 0;
@@ -111,10 +109,11 @@ const run = async (): Promise<void> => {
   console.log(`Unique users completed:       ${uniqueUsersCompleted}`);
   console.log("");
   console.log("Real completion throughput/latency (from Postgres, not k6):");
-  console.log(`  Avg completed/s (over active seconds):  ${avgCompletedPerSecond.toFixed(1)}`);
-  console.log(`  Peak completed/s (any single second):    ${peakCompletedPerSecond}`);
   console.log(
-    `  Completion latency avg/p50/p95/max (s):  ${avgLatencySeconds?.toFixed(3) ?? "n/a"} / ${percentile(completionLatenciesSeconds, 0.5)?.toFixed(3) ?? "n/a"} / ${percentile(completionLatenciesSeconds, 0.95)?.toFixed(3) ?? "n/a"} / ${completionLatenciesSeconds.at(-1)?.toFixed(3) ?? "n/a"}`,
+    `  Avg completed/s (over active seconds):  ${avgCompletedPerSecond.toFixed(1)}`,
+  );
+  console.log(
+    `  Completion latency avg/p50/p95/p99/max (s):  ${avgLatencySeconds?.toFixed(3) ?? "n/a"} / ${percentile(completionLatenciesSeconds, 0.5)?.toFixed(3) ?? "n/a"} / ${percentile(completionLatenciesSeconds, 0.95)?.toFixed(3) ?? "n/a"} / ${percentile(completionLatenciesSeconds, 0.99)?.toFixed(3) ?? "n/a"} / ${completionLatenciesSeconds.at(-1)?.toFixed(3) ?? "n/a"}`,
   );
   console.log("");
 
@@ -149,7 +148,7 @@ const run = async (): Promise<void> => {
   console.log("");
 
   // Appended as a trailing row so report.js can combine it with the monitor.sh samples.
-  const monitorRow = `,,,,,,,,,,,,,${finalStock ?? ""},${totalTransactions},${completedTransactions},${usersAttempted},${uniqueUsersCompleted},${avgCompletedPerSecond.toFixed(1)},${peakCompletedPerSecond},${avgLatencySeconds?.toFixed(3) ?? ""},${percentile(completionLatenciesSeconds, 0.95)?.toFixed(3) ?? ""}\n`;
+  const monitorRow = `,,,,,,,,,,,,,${finalStock ?? ""},${totalTransactions},${completedTransactions},${usersAttempted},${uniqueUsersCompleted},${avgCompletedPerSecond.toFixed(1)},${avgLatencySeconds?.toFixed(3) ?? ""},${percentile(completionLatenciesSeconds, 0.95)?.toFixed(3) ?? ""},${percentile(completionLatenciesSeconds, 0.99)?.toFixed(3) ?? ""}\n`;
   appendFileSync(MONITOR_CSV_PATH, monitorRow);
 };
 

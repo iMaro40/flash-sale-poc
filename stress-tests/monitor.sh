@@ -10,7 +10,7 @@ WORKER_METRICS_PORT="${WORKER_METRICS_PORT:-3001}"
 : > "$OUT_FILE"
 # Trailing final_stock/transactions_*/unique_users_*/completion_* columns are left blank here and
 # filled in by integrity-check.ts once the stress test finishes.
-echo "node_cpu_percent,node_memory_kb,pg_active_connections,pg_lock_waits,redis_cpu_percent,redis_memory,pending_acquires,avg_acquire_wait_seconds,p95_acquire_wait_seconds,peak_acquire_wait_seconds,avg_lock_wait_seconds,p95_lock_wait_seconds,peak_lock_wait_seconds,final_stock,transactions_total,transactions_completed,unique_users_attempted,unique_users_completed,avg_completed_per_second,peak_completed_per_second,avg_completion_latency_seconds,p95_completion_latency_seconds" >> "$OUT_FILE"
+echo "node_cpu_percent,node_memory_kb,pg_active_sessions,pg_lock_waits,redis_cpu_percent,redis_memory,pending_acquires,avg_acquire_wait_seconds,p95_acquire_wait_seconds,peak_acquire_wait_seconds,avg_lock_wait_seconds,p95_lock_wait_seconds,peak_lock_wait_seconds,final_stock,transactions_total,transactions_completed,unique_users_attempted,unique_users_completed,avg_completed_per_second,avg_completion_latency_seconds,p95_completion_latency_seconds,p99_completion_latency_seconds,worker_active_connections" >> "$OUT_FILE"
 
 while true; do
   NODE_PID=$(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null | head -n1)
@@ -19,7 +19,8 @@ while true; do
   fi
   NODE_STATS="${NODE_STATS:-0,0}"
 
-  PG_ACTIVE=$(docker exec flash-sale-postgres psql -U postgres -d flash_sale -t -A \
+  # This is database-wide and includes this psql session, so it is not a Knex pool measure.
+  PG_ACTIVE_SESSIONS=$(docker exec flash-sale-postgres psql -U postgres -d flash_sale -t -A \
     -c "SELECT count(*) FROM pg_stat_activity WHERE datname='flash_sale' AND state='active';" 2>/dev/null | tr -d '[:space:]')
   PG_LOCK_WAITS=$(docker exec flash-sale-postgres psql -U postgres -d flash_sale -t -A \
     -c "SELECT count(*) FROM pg_locks WHERE NOT granted;" 2>/dev/null | tr -d '[:space:]')
@@ -45,12 +46,28 @@ while true; do
         stats.stockDecrementLockWait?.maxSeconds ?? 0,
       ].join(","));
     } catch {
-      console.log("0,0,0,0,0,0,0");
+      process.exitCode = 1;
     }
-  ' "$POOL_STATS_JSON" 2>/dev/null)
-  POOL_FIELDS="${POOL_FIELDS:-0,0,0,0,0,0,0}"
+  ' "$POOL_STATS_JSON")
+  POOL_FIELDS_EXIT_CODE=$?
+  WORKER_ACTIVE_CONNECTIONS=$(node -e '
+    try {
+      const stats = JSON.parse(process.argv[1]);
+      console.log(stats.activeConnections ?? 0);
+    } catch {
+      process.exitCode = 1;
+    }
+  ' "$POOL_STATS_JSON")
+  WORKER_ACTIVE_CONNECTIONS_EXIT_CODE=$?
+  if [ "$POOL_FIELDS_EXIT_CODE" -ne 0 ] || [ "$WORKER_ACTIVE_CONNECTIONS_EXIT_CODE" -ne 0 ] || [ -z "$POOL_FIELDS" ] || [ -z "$WORKER_ACTIVE_CONNECTIONS" ]; then
+    # Distinguish "endpoint unreachable/broken" from "genuinely zero contention" instead of
+    # silently reporting misleading zeros for every acquire/lock-wait stat in the final report.
+    echo "monitor.sh: WARNING - /internal/db-pool-stats on port $WORKER_METRICS_PORT returned no usable data (worker down or stale build?), recording zeros for this sample" >&2
+    POOL_FIELDS="0,0,0,0,0,0,0"
+    WORKER_ACTIVE_CONNECTIONS=0
+  fi
 
-  echo "${NODE_STATS},${PG_ACTIVE:-0},${PG_LOCK_WAITS:-0},${REDIS_CPU:-0},${REDIS_MEM:-n/a},${POOL_FIELDS},,,,,,,,," >> "$OUT_FILE"
+  echo "${NODE_STATS},${PG_ACTIVE_SESSIONS:-0},${PG_LOCK_WAITS:-0},${REDIS_CPU:-0},${REDIS_MEM:-n/a},${POOL_FIELDS},,,,,,,,,,${WORKER_ACTIVE_CONNECTIONS}" >> "$OUT_FILE"
 
   sleep 1
 done
