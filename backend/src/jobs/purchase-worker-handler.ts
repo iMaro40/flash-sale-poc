@@ -1,11 +1,11 @@
-import type { Channel, ConsumeMessage } from "amqplib";
+import type { Channel, Message } from "amqplib";
 
 import type { QueuedPurchase } from "../purchase/dto/queued-purchase";
 import type { PurchaseService } from "../purchase/service";
 import { withRetry } from "../utils/with-retry";
 
 export const processPurchaseMessage = async (
-  message: ConsumeMessage,
+  message: Message,
   channel: Channel,
   service: Pick<PurchaseService, "completePurchase" | "cancelPurchase">,
 ): Promise<void> => {

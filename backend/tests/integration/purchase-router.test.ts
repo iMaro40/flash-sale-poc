@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { app } from "../../src/app";
 import { database } from "../../src/database";
-import type { PurchaseProductInput } from "../../src/purchase/dto/purchase-product";
+import { processPurchaseMessage } from "../../src/jobs/purchase-worker-handler";
 import { purchaseService } from "../../src/purchase/service";
 import {
   closeRabbitMQ,
@@ -28,10 +28,7 @@ const processNextPurchaseMessage = async (): Promise<void> => {
     throw new Error("Expected a queued purchase message to process");
   }
 
-  const input = JSON.parse(message.content.toString()) as PurchaseProductInput;
-
-  await purchaseService.completePurchase(input);
-  channel.ack(message);
+  await processPurchaseMessage(message, channel, purchaseService);
   await channel.close();
 };
 
