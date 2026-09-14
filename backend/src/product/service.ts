@@ -86,8 +86,9 @@ export class ProductService {
     await this.productCache.releaseStockByProductId(input);
   }
 
-  // Simple reconciliation logic for demonstration purposes
-  // Has an edge case where stock might be incorrect if stock is updated while a purchase is being processed
+  // Simple reconciliation logic of Redis stock for demonstration purposes
+  // Not the most robust implementation right now: might incorrectly overwrite Redis with the wrong state
+  // At the very least, this will not result in actual overselling/underselling since DB has the correct stock values
   // A more robust solution would maybe involve recording purchase attempts and firing specific events on expiration
   public async reconcileStock(): Promise<number> {
     const products = await this.productRepository.findAll();
