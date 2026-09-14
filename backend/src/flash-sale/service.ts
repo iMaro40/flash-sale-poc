@@ -125,8 +125,11 @@ export class FlashSaleService {
       }),
     };
 
-    // TEMP-REVERT-FOR-TEST-VERIFICATION
-    await this.flashSaleCache.setActiveFlashSale(flashSale);
+    // Only cache sales that are active now, otherwise a future sale can overwrite
+    // the currently active sale's cached window and block ongoing purchases.
+    if (flashSale.status === FlashSaleStatus.ACTIVE) {
+      await this.flashSaleCache.setActiveFlashSale(flashSale);
+    }
 
     return flashSaleId;
   }
