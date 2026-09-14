@@ -52,10 +52,10 @@ console.log("-".repeat(40));
 console.log("");
 console.log(`                     ${profile.toUpperCase()}`);
 console.log(`Duration             ${k6Summary.durationSeconds}s`);
-console.log(`Avg succeeded/s      ${k6Summary.avgSucceededPerSecond}`);
-console.log(`avg latency          ${k6Summary.avgLatencySeconds}s`);
-console.log(`p95 latency          ${k6Summary.p95LatencySeconds}s`);
-console.log(`p99 latency          ${k6Summary.p99LatencySeconds}s`);
+console.log(`Avg accepted/s       ${k6Summary.avgAcceptedPerSecond}  (admission only, see INTEGRITY below for real completions/s)`);
+console.log(`avg admit latency    ${k6Summary.avgLatencySeconds}s`);
+console.log(`p95 admit latency    ${k6Summary.p95LatencySeconds}s`);
+console.log(`p99 admit latency    ${k6Summary.p99LatencySeconds}s`);
 console.log(`Error rate           ${k6Summary.errorRatePercent}%`);
 console.log(`Stock ran out at     ${k6Summary.stockRanOutAtSeconds}s`);
 console.log("");
@@ -93,13 +93,17 @@ console.log(`Memory               ${lastRedisMem}`);
 console.log("");
 
 if (integrityRow) {
-  const [, , , , , , , , , , , , , finalStock, transactionsTotal, transactionsCompleted, usersAttempted, uniqueUsersCompleted] =
+  const [, , , , , , , , , , , , , finalStock, transactionsTotal, transactionsCompleted, usersAttempted, uniqueUsersCompleted, avgCompletedPerSecond, peakCompletedPerSecond, avgCompletionLatencySeconds, p95CompletionLatencySeconds] =
     integrityRow;
-  console.log("INTEGRITY");
+  console.log("INTEGRITY (real DB-derived completion metrics, not k6 request-side metrics)");
   console.log(`Final stock (DB)     ${finalStock}`);
   console.log(`Transactions total   ${transactionsTotal}`);
   console.log(`Transactions done    ${transactionsCompleted}`);
   console.log(`Users attempted      ${usersAttempted}`);
   console.log(`Users completed      ${uniqueUsersCompleted}`);
+  console.log(`Avg completed/s      ${avgCompletedPerSecond ?? "n/a"}`);
+  console.log(`Peak completed/s     ${peakCompletedPerSecond ?? "n/a"}`);
+  console.log(`Avg completion latency (admit->commit)  ${avgCompletionLatencySeconds || "n/a"}s`);
+  console.log(`p95 completion latency (admit->commit)  ${p95CompletionLatencySeconds || "n/a"}s`);
   console.log("");
 }

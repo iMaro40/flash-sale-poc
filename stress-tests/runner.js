@@ -15,7 +15,11 @@ export function createPurchaseLoadTest(config) {
   } = config;
 
   // Custom metrics so the summary breaks results down by outcome, not just pass/fail.
-  const purchased = new Counter("purchases_succeeded");
+  // NOTE: purchases are async now (reserve in Redis -> queue -> worker writes Postgres), so a
+  // 202 here only means "accepted for processing", not "purchase completed". Real completion
+  // throughput/latency can only be measured from Postgres afterward (see integrity-check.ts).
+  const accepted = new Counter("purchases_accepted");
+  const alreadyCompleted = new Counter("purchases_already_completed");
   const outOfStock = new Counter("purchases_out_of_stock");
   const rateLimited = new Counter("purchases_rate_limited");
   const otherErrors = new Counter("purchases_other_errors");
@@ -43,22 +47,23 @@ export function createPurchaseLoadTest(config) {
   const isRealOutOfStock = (res) =>
     res.status === 409 && res.body?.includes("out of stock");
 
-  // One Counter per 1s bucket of the run, so handleSummary can compute avg succeeded/s up to the
-  // moment stock ran out — real DB-bound throughput, not diluted by the post-depletion instant-
-  // rejection flood. Covers up to 120s of runtime.
+  // One Counter per 1s bucket of the run, so handleSummary can compute avg accepted/s up to the
+  // moment stock ran out. This tracks admission throughput (Redis-bound), NOT DB completion
+  // throughput anymore — see integrity-check.ts for the real completed/s figure from Postgres.
+  // Covers up to 120s of runtime.
   const BUCKET_SECONDS = 1;
   const MAX_BUCKETS = 120;
-  const succeededByBucket = Array.from(
+  const acceptedByBucket = Array.from(
     { length: MAX_BUCKETS },
-    (_, index) => new Counter(`succeeded_bucket_${index}`),
+    (_, index) => new Counter(`accepted_bucket_${index}`),
   );
-  const recordSucceededCompletion = (data) => {
+  const recordAcceptedRequest = (data) => {
     const elapsedSeconds = (Date.now() - data.testStartMs) / 1000;
     const bucketIndex = Math.min(
       Math.floor(elapsedSeconds / BUCKET_SECONDS),
       MAX_BUCKETS - 1,
     );
-    succeededByBucket[bucketIndex].add(1);
+    acceptedByBucket[bucketIndex].add(1);
   };
 
   const options = {
@@ -139,22 +144,29 @@ export function createPurchaseLoadTest(config) {
       usersAttempted.add(1);
 
       const [first, second] = responses;
-      if (first.status === 201) recordSucceededCompletion(data);
-      if (second.status === 201) recordSucceededCompletion(data);
+      if (first.status === 202) recordAcceptedRequest(data);
+      if (second.status === 202) recordAcceptedRequest(data);
 
       // These are expected to conflict with each other regardless of real stock levels, so they're
       // excluded from the depletion-timestamp measurement.
-      if (first.status === 201) purchased.add(1);
+      if (first.status === 202) accepted.add(1);
+      else if (first.status === 200) alreadyCompleted.add(1);
       else if (first.status === 409) outOfStock.add(1);
       else if (first.status === 429) rateLimited.add(1);
       else otherErrors.add(1);
 
-      if (second.status === 201) purchased.add(1);
+      if (second.status === 202) accepted.add(1);
+      else if (second.status === 200) alreadyCompleted.add(1);
       else if (second.status === 409) outOfStock.add(1);
       else if (second.status === 429) rateLimited.add(1);
       else otherErrors.add(1);
 
-      if (first.status === 201 && second.status === 201) {
+      // Both getting accepted/already-completed is the expected shape of an idempotent retry —
+      // it doesn't mean two DB rows were written, since completion happens later in the worker.
+      if (
+        (first.status === 202 || first.status === 200) &&
+        (second.status === 202 || second.status === 200)
+      ) {
         doublePurchaseBothSucceeded.add(1);
       }
 
@@ -186,21 +198,24 @@ export function createPurchaseLoadTest(config) {
       usersAttempted.add(1);
 
       const [first, second] = responses;
-      if (first.status === 201) recordSucceededCompletion(data);
-      if (second.status === 201) recordSucceededCompletion(data);
+      if (first.status === 202) recordAcceptedRequest(data);
+      if (second.status === 202) recordAcceptedRequest(data);
 
-      if (first.status === 201) purchased.add(1);
+      if (first.status === 202) accepted.add(1);
+      else if (first.status === 200) alreadyCompleted.add(1);
       else if (first.status === 409) outOfStock.add(1);
       else if (first.status === 429) rateLimited.add(1);
       else otherErrors.add(1);
 
-      if (second.status === 201) purchased.add(1);
+      if (second.status === 202) accepted.add(1);
+      else if (second.status === 200) alreadyCompleted.add(1);
       else if (second.status === 409) outOfStock.add(1);
       else if (second.status === 429) rateLimited.add(1);
       else otherErrors.add(1);
 
-      // The real double-purchase signal: two distinct requests from the same user both went through.
-      if (first.status === 201 && second.status === 201) {
+      // The real double-purchase signal: two distinct requests from the same user both admitted
+      // (each reserved stock independently). Whether both actually complete is confirmed in Postgres.
+      if (first.status === 202 && second.status === 202) {
         sameUserRaceBothSucceeded.add(1);
       }
 
@@ -212,10 +227,12 @@ export function createPurchaseLoadTest(config) {
     const res = http.post(`${baseUrl}/purchases`, body, params);
 
     usersAttempted.add(1);
-    if (res.status === 201) recordSucceededCompletion(data);
+    if (res.status === 202) recordAcceptedRequest(data);
 
-    if (res.status === 201) {
-      purchased.add(1);
+    if (res.status === 202) {
+      accepted.add(1);
+    } else if (res.status === 200) {
+      alreadyCompleted.add(1);
     } else if (res.status === 409) {
       outOfStock.add(1);
       if (isRealOutOfStock(res)) {
@@ -252,7 +269,8 @@ export function createPurchaseLoadTest(config) {
       return value !== undefined ? (value / 1000).toFixed(3) : "n/a";
     };
 
-    const succeeded = count("purchases_succeeded");
+    const acceptedCount = count("purchases_accepted");
+    const alreadyCompletedCount = count("purchases_already_completed");
     const outOfStockCount = count("purchases_out_of_stock");
     const rateLimitedCount = count("purchases_rate_limited");
     const otherErrorCount = count("purchases_other_errors");
@@ -273,31 +291,35 @@ export function createPurchaseLoadTest(config) {
       data.metrics.out_of_stock_elapsed_seconds?.values.min;
     const durationSecondsTotal = (data.state?.testRunDurationMs ?? 0) / 1000;
 
-    const succeededBucketCounts = succeededByBucket.map((_, index) =>
-      count(`succeeded_bucket_${index}`),
+    const acceptedBucketCounts = acceptedByBucket.map((_, index) =>
+      count(`accepted_bucket_${index}`),
     );
 
-    // Real DB capacity, comparable across profiles: avg succeeded/s only up to the moment stock ran
-    // out, so it isn't diluted by the post-depletion instant-rejection flood like whole-test RPS was.
+    // NOTE: this is admission throughput (Redis reservation + queue publish), not DB completion
+    // throughput — purchases are async now, so k6 never observes the worker actually committing to
+    // Postgres. Real completed/s and completion latency come from integrity-check.ts querying
+    // transactions.created_at/updated_at after the run.
     const preDepletionSeconds = stockRanOutAtSeconds ?? durationSecondsTotal;
     const preDepletionBucketCount = Math.min(
       Math.ceil(preDepletionSeconds / BUCKET_SECONDS),
-      succeededBucketCounts.length,
+      acceptedBucketCounts.length,
     );
-    const preDepletionSucceeded = succeededBucketCounts
+    const preDepletionAccepted = acceptedBucketCounts
       .slice(0, preDepletionBucketCount)
       .reduce((sum, value) => sum + value, 0);
-    const avgSucceededPerSecond =
-      preDepletionSeconds > 0 ? preDepletionSucceeded / preDepletionSeconds : 0;
+    const avgAcceptedPerSecond =
+      preDepletionSeconds > 0 ? preDepletionAccepted / preDepletionSeconds : 0;
 
     const lines = [
       "",
       `Max VUs:            ${maxVUs}`,
       `Total requests:      ${totalRequests}`,
       "",
-      `Avg succeeded/s (pre-depletion): ${avgSucceededPerSecond.toFixed(1)}`,
+      `Avg accepted/s (pre-depletion, admission only): ${avgAcceptedPerSecond.toFixed(1)}`,
+      "(Real completed/s + latency now come from Postgres — see integrity check output below)",
       "",
-      `Succeeded (201):     ${succeeded}  (${percent(succeeded)}%)`,
+      `Accepted (202):        ${acceptedCount}  (${percent(acceptedCount)}%)`,
+      `Already completed (200): ${alreadyCompletedCount}  (${percent(alreadyCompletedCount)}%)`,
       `Out of stock (409):  ${outOfStockCount}  (${percent(outOfStockCount)}%)`,
       `Rate limited (429):  ${rateLimitedCount}  (${percent(rateLimitedCount)}%)`,
       `Other errors:        ${otherErrorCount}  (${percent(otherErrorCount)}%)`,
@@ -312,7 +334,7 @@ export function createPurchaseLoadTest(config) {
         ? `Stock started running out at: ${stockRanOutAtSeconds.toFixed(1)}s into the test`
         : "Stock started running out at: never (stock never depleted)",
       "",
-      "Latency (s)",
+      "HTTP admission latency (s) — accept/reject only, NOT purchase completion:",
       `  avg:  ${durationSeconds("avg")}`,
       `  p90:  ${durationSeconds("p(90)")}`,
       `  p95:  ${durationSeconds("p(95)")}`,
@@ -329,7 +351,7 @@ export function createPurchaseLoadTest(config) {
 
     const jsonSummary = {
       durationSeconds: durationSecondsTotal.toFixed(1),
-      avgSucceededPerSecond: avgSucceededPerSecond.toFixed(1),
+      avgAcceptedPerSecond: avgAcceptedPerSecond.toFixed(1),
       avgLatencySeconds: durationSeconds("avg"),
       p95LatencySeconds: durationSeconds("p(95)"),
       p99LatencySeconds: durationSeconds("p(99)"),
