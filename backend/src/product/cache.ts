@@ -15,24 +15,29 @@ export class ProductCache {
   public async getProductById(
     productId: string,
   ): Promise<Omit<Product, "stock"> | undefined> {
-    // Stock uses separate Redis key
-    const cachedProduct = await this.redis.get(
+    const cachedProduct = await this.redis.hGetAll(
       redisKeys.productDetails(productId),
     );
 
-    if (!cachedProduct) {
+    if (Object.keys(cachedProduct).length === 0) {
       return undefined;
     }
 
-    return JSON.parse(cachedProduct) as Omit<Product, "stock">;
+    return {
+      id: cachedProduct.id,
+      name: cachedProduct.name,
+    };
   }
 
   public async setProduct(product: Product): Promise<void> {
-    await this.redis.set(
-      redisKeys.productDetails(product.id),
-      JSON.stringify(product),
-      { EX: 300 },
-    );
+    const productDetailsKey = redisKeys.productDetails(product.id);
+    // product details is just id and name
+    await this.redis.hSet(productDetailsKey, {
+      id: product.id,
+      name: product.name,
+    });
+    await this.redis.expire(productDetailsKey, 300);
+    // Separate key for product stock so we can increment/decrement independently
     await this.redis.set(
       redisKeys.productStock(product.id),
       product.stock.toString(),

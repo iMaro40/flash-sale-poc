@@ -13,7 +13,7 @@ const product: Product = {
 describe("ProductCache", () => {
   it("throws when Redis get fails", async () => {
     const redis = {
-      get: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+      hGetAll: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
       set: vi.fn(),
     };
     const cache = new ProductCache(redis as never);
@@ -23,10 +23,12 @@ describe("ProductCache", () => {
     );
   });
 
-  it("throws when Redis set fails", async () => {
+  it("throws when Redis hash write fails", async () => {
     const redis = {
-      get: vi.fn(),
-      set: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+      hGetAll: vi.fn(),
+      hSet: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+      expire: vi.fn(),
+      set: vi.fn(),
       del: vi.fn(),
     };
     const cache = new ProductCache(redis as never);
@@ -38,7 +40,9 @@ describe("ProductCache", () => {
 
   it("deletes cached product details without deleting the stock counter", async () => {
     const redis = {
-      get: vi.fn(),
+      hGetAll: vi.fn(),
+      hSet: vi.fn(),
+      expire: vi.fn(),
       set: vi.fn(),
       del: vi.fn().mockResolvedValue(2),
     };
@@ -51,7 +55,9 @@ describe("ProductCache", () => {
 
   it("throws when Redis del fails", async () => {
     const redis = {
-      get: vi.fn(),
+      hGetAll: vi.fn(),
+      hSet: vi.fn(),
+      expire: vi.fn(),
       set: vi.fn(),
       del: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
     };
@@ -83,7 +89,7 @@ describe("ProductCache", () => {
       {
         keys: [
           `product:{${product.id}}:stock`,
-          `flash-sale:{${product.id}}:window`,
+          `flash-sale:{${product.id}}`,
           `product:{${product.id}}:buyer:user-1`,
           `product:{${product.id}}:reservation:user-1:idem-1`,
         ],
@@ -143,7 +149,7 @@ describe("ProductCache", () => {
         keys: [
           `product:{${product.id}}:buyer:user-1`,
           `product:{${product.id}}:reservation:user-1:idem-1`,
-          `flash-sale:{${product.id}}:window`,
+          `flash-sale:{${product.id}}`,
         ],
         arguments: ["idem-1"],
       },
