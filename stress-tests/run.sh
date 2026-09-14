@@ -46,9 +46,6 @@ K6_OUTPUT=$(k6 run "stress-tests/${PROFILE}.js" "$@" 2>&1 | tee /dev/stderr)
 K6_EXIT_CODE=$?
 set -e
 
-kill "$MONITOR_PID" 2>/dev/null || true
-trap - EXIT
-
 REDIS_EVALSHA_AFTER=$(redis_cmdstat_calls evalsha)
 REDIS_EVALSHA_AFTER=${REDIS_EVALSHA_AFTER:-0}
 REDIS_EVAL_AFTER=$(redis_cmdstat_calls eval)
@@ -70,6 +67,47 @@ if [ -z "$PRODUCT_ID" ]; then
   echo "Could not determine product ID from k6 output; skipping integrity check."
   exit 1
 fi
+
+# HTTP 202 means the purchase was queued, so k6 can finish while the worker still has writes
+# outstanding. Wait for both RabbitMQ and Postgres to settle before measuring final stock.
+DRAIN_TIMEOUT_SECONDS="${DRAIN_TIMEOUT_SECONDS:-120}"
+wait_for_purchase_drain() {
+  local elapsed=0
+
+  echo "Waiting for queued purchases to drain (timeout: ${DRAIN_TIMEOUT_SECONDS}s)..."
+  while true; do
+    local pendingTransactions queueMessages
+    pendingTransactions=$(docker exec flash-sale-postgres psql -U postgres -d flash_sale -t -A \
+      -c "SELECT count(*) FROM transactions WHERE product_id = '${PRODUCT_ID}' AND status = 'PENDING';" \
+      2>/dev/null | tr -d '[:space:]')
+    queueMessages=$(docker exec flash-sale-rabbitmq rabbitmqctl list_queues -q name messages messages_unacknowledged \
+      2>/dev/null | awk -v queue="purchase.process" '$1 == queue { print $2 + $3 }')
+
+    pendingTransactions=${pendingTransactions:-0}
+    queueMessages=${queueMessages:-0}
+    if [ "$pendingTransactions" -eq 0 ] && [ "$queueMessages" -eq 0 ]; then
+      echo "Purchase queue drained after ${elapsed}s."
+      return 0
+    fi
+
+    if [ "$elapsed" -ge "$DRAIN_TIMEOUT_SECONDS" ]; then
+      echo "Timed out waiting for purchase drain: ${pendingTransactions} pending transaction(s), ${queueMessages} queue message(s)." >&2
+      return 1
+    fi
+
+    echo "  ${pendingTransactions} pending transaction(s), ${queueMessages} queue message(s) remaining..."
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+}
+
+set +e
+wait_for_purchase_drain
+DRAIN_EXIT_CODE=$?
+set -e
+
+kill "$MONITOR_PID" 2>/dev/null || true
+trap - EXIT
 
 set +e
 (cd backend && npx tsx scripts/integrity-check.ts "$PRODUCT_ID" "$USERS_ATTEMPTED" "$INITIAL_STOCK")
@@ -112,6 +150,10 @@ fi
 if [ "$INTEGRITY_EXIT_CODE" -ne 0 ]; then
   echo "Integrity check failed (exit code $INTEGRITY_EXIT_CODE)" >&2
   EXIT_CODE=$INTEGRITY_EXIT_CODE
+fi
+if [ "$DRAIN_EXIT_CODE" -ne 0 ]; then
+  echo "Purchase queue did not drain before timeout (exit code $DRAIN_EXIT_CODE)" >&2
+  EXIT_CODE=$DRAIN_EXIT_CODE
 fi
 if [ "${PG_DUPLICATE_BUYERS:-0}" -gt 0 ]; then
   echo "Integrity check failed: $PG_DUPLICATE_BUYERS user(s) have more than one transaction row for product $PRODUCT_ID" >&2

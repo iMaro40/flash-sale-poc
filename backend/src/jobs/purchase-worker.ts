@@ -14,7 +14,9 @@ import { processPurchaseMessage } from "./purchase-worker-handler";
 
 // Caps how many purchase DB writes can run at the same time, regardless of how
 // many purchase requests were accepted upstream. This is the actual rate limiter into Postgres.
-const MAX_CONCURRENT_DB_WRITES = Number(200);
+const MAX_CONCURRENT_DB_WRITES = Number(
+  process.env.PURCHASE_WORKER_PREFETCH ?? 0,
+);
 
 // Serves this process's own pool/lock-wait stats: the API server's pool barely contends,
 // so monitor.sh must poll the worker (where decrementStockByProductId actually runs) instead.
