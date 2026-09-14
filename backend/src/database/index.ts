@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { knex, type Knex } from "knex";
 
+import { createDurationSampler, type DurationStats } from "../utils/duration-sampler";
+
 config({ path: resolve(__dirname, "../../.env") });
 
 const connection = {
@@ -18,7 +20,7 @@ export const database: Knex = knex({
   connection,
   pool: {
     min: 2,
-    max: 10,
+    max: 20,
   },
 });
 
@@ -38,23 +40,10 @@ interface PoolWithEvents {
 
 const pool = (database.client as unknown as { pool: PoolWithEvents }).pool;
 
-// Ring buffer of recent "time spent waiting for a pool connection" samples (ms), so
-// getDbPoolStats() can report avg/p95/max without an unbounded array or per-request shift() cost.
-// Basically just gets latest 2000 requests all the time
-const ACQUIRE_SAMPLE_CAPACITY = 2000;
-const acquireDurationsMs = new Float64Array(ACQUIRE_SAMPLE_CAPACITY);
-let acquireSampleIndex = 0;
-let acquireSampleCount = 0;
+// How long requests wait for a pool connection, separate from time spent waiting on a Postgres row
+// lock after a connection is already held (that's trackStockDecrementDuration, in product/repository.ts).
+const acquireDurationSampler = createDurationSampler(2000);
 const acquireStartTimes = new Map<number, number>();
-
-const recordAcquireDurationMs = (durationMs: number): void => {
-  acquireDurationsMs[acquireSampleIndex] = durationMs;
-  acquireSampleIndex = (acquireSampleIndex + 1) % ACQUIRE_SAMPLE_CAPACITY;
-  acquireSampleCount = Math.min(
-    acquireSampleCount + 1,
-    ACQUIRE_SAMPLE_CAPACITY,
-  );
-};
 
 pool.on("acquireRequest", (eventId) => {
   acquireStartTimes.set(eventId, Date.now());
@@ -62,7 +51,7 @@ pool.on("acquireRequest", (eventId) => {
 pool.on("acquireSuccess", (eventId) => {
   const startedAt = acquireStartTimes.get(eventId);
   if (startedAt !== undefined) {
-    recordAcquireDurationMs(Date.now() - startedAt);
+    acquireDurationSampler.record(Date.now() - startedAt);
     acquireStartTimes.delete(eventId);
   }
 });
@@ -74,33 +63,12 @@ export interface DbPoolStats {
   activeConnections: number;
   freeConnections: number;
   pendingAcquires: number;
-  acquireSampleCount: number;
-  avgAcquireSeconds: number;
-  p95AcquireSeconds: number;
-  maxAcquireSeconds: number;
+  acquireWait: DurationStats;
 }
 
-// How long requests actually wait to get a pool connection, separate from time spent waiting on a
-// Postgres row lock after a connection is already held (that's pg_locks, tracked in monitor.sh).
-export const getDbPoolStats = (): DbPoolStats => {
-  const samples = Array.from(
-    acquireDurationsMs.slice(0, acquireSampleCount),
-  ).sort((a, b) => a - b);
-  const avgAcquireMs = samples.length
-    ? samples.reduce((sum, value) => sum + value, 0) / samples.length
-    : 0;
-  const p95AcquireMs = samples.length
-    ? samples[Math.floor(samples.length * 0.95)]
-    : 0;
-  const maxAcquireMs = samples.length ? samples[samples.length - 1] : 0;
-
-  return {
-    activeConnections: pool.numUsed(),
-    freeConnections: pool.numFree(),
-    pendingAcquires: pool.numPendingAcquires(),
-    acquireSampleCount: samples.length,
-    avgAcquireSeconds: Number((avgAcquireMs / 1000).toFixed(3)),
-    p95AcquireSeconds: Number((p95AcquireMs / 1000).toFixed(3)),
-    maxAcquireSeconds: Number((maxAcquireMs / 1000).toFixed(3)),
-  };
-};
+export const getDbPoolStats = (): DbPoolStats => ({
+  activeConnections: pool.numUsed(),
+  freeConnections: pool.numFree(),
+  pendingAcquires: pool.numPendingAcquires(),
+  acquireWait: acquireDurationSampler.stats(),
+});

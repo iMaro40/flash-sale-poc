@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const POOL_MAX = 10; // must match backend/src/database/index.ts pool.max
+const POOL_MAX = 20; // must match backend/src/database/index.ts pool.max
 
 const profile = process.argv[2] || "run";
 const root = path.resolve(__dirname, "..");
@@ -36,6 +36,9 @@ const poolPendingAcquires = column(6);
 const poolAvgAcquireSeconds = column(7);
 const poolP95AcquireSeconds = column(8);
 const poolMaxAcquireSeconds = column(9);
+const lockWaitAvgSeconds = column(10);
+const lockWaitP95Seconds = column(11);
+const lockWaitMaxSeconds = column(12);
 
 console.log("");
 console.log("FLASH SALE LOAD TEST");
@@ -70,6 +73,13 @@ console.log(
   `p95 acquire wait     ${avg(poolP95AcquireSeconds).toFixed(3)}s  (latest 2000 requests)`,
 );
 console.log(`Peak acquire wait    ${peak(poolMaxAcquireSeconds).toFixed(3)}s`);
+console.log(
+  `Avg lock wait        ${avg(lockWaitAvgSeconds).toFixed(3)}s  (latest 2000 requests)`,
+);
+console.log(
+  `p95 lock wait        ${avg(lockWaitP95Seconds).toFixed(3)}s  (latest 2000 requests)`,
+);
+console.log(`Peak lock wait       ${peak(lockWaitMaxSeconds).toFixed(3)}s`);
 console.log("");
 console.log("REDIS");
 console.log(`CPU avg              ${avg(redisCpu).toFixed(0)}%`);

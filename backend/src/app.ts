@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/error-handler";
 import { rateLimiter } from "./middleware/rate-limiter";
 import { flashSaleRouter } from "./flash-sale/router";
 import { productRouter } from "./product/router";
+import { getStockDecrementLockWaitStats } from "./product/repository";
 import { purchaseRouter } from "./purchase/router";
 import { transactionRouter } from "./transactions/router";
 
@@ -24,7 +25,10 @@ app.get("/health", (_request, response) => {
 // Used by stress-tests/monitor.sh to distinguish "waiting for a pool connection" from
 // "waiting on a Postgres row lock after already holding a connection".
 app.get("/internal/db-pool-stats", (_request, response) => {
-  response.status(200).json(getDbPoolStats());
+  response.status(200).json({
+    ...getDbPoolStats(),
+    stockDecrementLockWait: getStockDecrementLockWaitStats(),
+  });
 });
 
 app.use(flashSaleRouter);

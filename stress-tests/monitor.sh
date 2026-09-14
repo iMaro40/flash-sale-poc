@@ -32,15 +32,18 @@ while true; do
       const stats = JSON.parse(process.argv[1]);
       console.log([
         stats.pendingAcquires ?? 0,
-        stats.avgAcquireSeconds ?? 0,
-        stats.p95AcquireSeconds ?? 0,
-        stats.maxAcquireSeconds ?? 0,
+        stats.acquireWait?.avgSeconds ?? 0,
+        stats.acquireWait?.p95Seconds ?? 0,
+        stats.acquireWait?.maxSeconds ?? 0,
+        stats.stockDecrementLockWait?.avgSeconds ?? 0,
+        stats.stockDecrementLockWait?.p95Seconds ?? 0,
+        stats.stockDecrementLockWait?.maxSeconds ?? 0,
       ].join(","));
     } catch {
-      console.log("0,0,0,0");
+      console.log("0,0,0,0,0,0,0");
     }
   ' "$POOL_STATS_JSON" 2>/dev/null)
-  POOL_FIELDS="${POOL_FIELDS:-0,0,0,0}"
+  POOL_FIELDS="${POOL_FIELDS:-0,0,0,0,0,0,0}"
 
   echo "${NODE_STATS},${PG_ACTIVE:-0},${PG_LOCK_WAITS:-0},${REDIS_CPU:-0},${REDIS_MEM:-n/a},${POOL_FIELDS}" >> "$OUT_FILE"
 
