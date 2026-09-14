@@ -1,3 +1,5 @@
+import "../env";
+
 import { connectRedis } from "../redis";
 import { runReconcileStock } from "./reconcile-stock";
 

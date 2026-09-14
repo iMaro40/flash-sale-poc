@@ -214,4 +214,57 @@ describe("purchase routes", () => {
       expect.arrayContaining([expect.stringContaining("productId")]),
     );
   });
+
+  it("purchases succeed when a later, non-overlapping flash sale is scheduled for the same product", async () => {
+    const productResponse = await request(app)
+      .post("/products")
+      .send({ name: `Upcoming Sale Overwrite Product ${Date.now()}`, stock: 1 })
+      .expect(201);
+    const product = productResponse.body as ProductResponse;
+    createdProductIds.push(product.id);
+
+    const activeStart = new Date(Date.now() - 60_000);
+    const activeEnd = new Date(Date.now() + 60_000);
+    const activeFlashSaleResponse = await request(app)
+      .post("/flash-sales")
+      .send({
+        productId: product.id,
+        startTime: activeStart.toISOString(),
+        endTime: activeEnd.toISOString(),
+      })
+      .expect(201);
+    createdFlashSaleIds.push(activeFlashSaleResponse.body.flashSaleId);
+
+    // Non-overlapping and starts later, but creating it must not clobber the active sale's cached window.
+    const upcomingStart = new Date(activeEnd.getTime() + 60_000);
+    const upcomingEnd = new Date(upcomingStart.getTime() + 60_000);
+    const upcomingFlashSaleResponse = await request(app)
+      .post("/flash-sales")
+      .send({
+        productId: product.id,
+        startTime: upcomingStart.toISOString(),
+        endTime: upcomingEnd.toISOString(),
+      })
+      .expect(201);
+    createdFlashSaleIds.push(upcomingFlashSaleResponse.body.flashSaleId);
+
+    const userId = "88888888-8888-8888-8888-888888888888";
+    const response = await request(app)
+      .post("/purchases")
+      .send({
+        productId: product.id,
+        userId,
+        idempotencyKey: `integration-upcoming-overwrite-${Date.now()}`,
+      })
+      .expect(201);
+
+    expect(response.body).toEqual({ message: "Purchase created" });
+
+    const transaction = await database("transactions")
+      .where({ user_id: userId, product_id: product.id })
+      .first("id");
+    if (transaction) {
+      createdTransactionIds.push(transaction.id);
+    }
+  });
 });

@@ -1,11 +1,8 @@
-import { config } from "dotenv";
-import { resolve } from "node:path";
+import "../env";
 
 import { knex, type Knex } from "knex";
 
 import { createDurationSampler, type DurationStats } from "../utils/duration-sampler";
-
-config({ path: resolve(__dirname, "../../.env") });
 
 const connection = {
   host: process.env.POSTGRES_HOST ?? "localhost",

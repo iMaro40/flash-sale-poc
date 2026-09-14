@@ -1,10 +1,7 @@
-import { config } from "dotenv";
-import { resolve } from "node:path";
+import "./env";
 
 import { app } from "./app";
 import { connectRedis } from "./redis";
-
-config({ path: resolve(__dirname, "../../.env") });
 
 const port: number = Number(process.env.PORT ?? 3000);
 

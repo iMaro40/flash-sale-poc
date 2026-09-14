@@ -1,9 +1,6 @@
-import { config as loadEnv } from "dotenv";
-import { resolve } from "node:path";
+import "./src/env";
 
 import type { Knex } from "knex";
-
-loadEnv({ path: resolve(__dirname, "../.env") });
 
 const connection = {
   host: process.env.POSTGRES_HOST ?? "localhost",
