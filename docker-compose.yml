@@ -21,6 +21,16 @@ services:
     volumes:
       - flash-sale-redis-data:/data
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: flash-sale-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - flash-sale-rabbitmq-data:/var/lib/rabbitmq
+
   stock-reconciler:
     build:
       context: .
@@ -40,6 +50,29 @@ services:
       REDIS_PORT: 6379
       RECONCILE_STOCK_INTERVAL_MS: 600000
 
+  purchase-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.purchase-worker
+    container_name: flash-sale-purchase-worker
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: flash_sale
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      PURCHASE_WORKER_PREFETCH: 10
+
 volumes:
   flash-sale-postgres-data:
   flash-sale-redis-data:
+  flash-sale-rabbitmq-data:
+

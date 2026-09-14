@@ -3,11 +3,37 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { app } from "../../src/app";
 import { database } from "../../src/database";
+import type { PurchaseProductInput } from "../../src/purchase/dto/purchase-product";
+import { purchaseService } from "../../src/purchase/service";
+import {
+  closeRabbitMQ,
+  connectRabbitMQ,
+  createConsumerChannel,
+} from "../../src/rabbitmq";
+import { assertPurchaseQueue, PURCHASE_QUEUE } from "../../src/rabbitmq/queues";
 import { closeRedis, connectRedis } from "../../src/redis";
 
 interface ProductResponse {
   id: string;
 }
+
+// Simulates the purchase worker for a single message: the DB write is normally
+// performed asynchronously by a separate consumer process, not the HTTP request.
+const processNextPurchaseMessage = async (): Promise<void> => {
+  const channel = await createConsumerChannel();
+  await assertPurchaseQueue(channel);
+  const message = await channel.get(PURCHASE_QUEUE, { noAck: false });
+
+  if (!message) {
+    throw new Error("Expected a queued purchase message to process");
+  }
+
+  const input = JSON.parse(message.content.toString()) as PurchaseProductInput;
+
+  await purchaseService.completePurchase(input);
+  channel.ack(message);
+  await channel.close();
+};
 
 describe("purchase routes", () => {
   const createdProductIds: string[] = [];
@@ -16,9 +42,11 @@ describe("purchase routes", () => {
 
   beforeAll(async () => {
     await connectRedis();
+    await connectRabbitMQ();
   });
 
   afterAll(async () => {
+    await closeRabbitMQ();
     if (createdTransactionIds.length > 0) {
       await database("transactions")
         .whereIn("id", createdTransactionIds)
@@ -72,9 +100,10 @@ describe("purchase routes", () => {
         userId,
         idempotencyKey: `integration-${Date.now()}`,
       })
-      .expect(201);
+      .expect(202);
 
-    expect(response.body).toEqual({ message: "Purchase created" });
+    expect(response.body).toEqual({ message: "Purchase accepted, processing" });
+    await processNextPurchaseMessage();
 
     const transactionResponse = await request(app)
       .get(`/transactions/${userId}/${product.id}`)
@@ -182,7 +211,8 @@ describe("purchase routes", () => {
         userId,
         idempotencyKey: `integration-first-purchase-${Date.now()}`,
       })
-      .expect(201);
+      .expect(202);
+    await processNextPurchaseMessage();
 
     const response = await request(app)
       .post("/purchases")
@@ -256,9 +286,10 @@ describe("purchase routes", () => {
         userId,
         idempotencyKey: `integration-upcoming-overwrite-${Date.now()}`,
       })
-      .expect(201);
+      .expect(202);
 
-    expect(response.body).toEqual({ message: "Purchase created" });
+    expect(response.body).toEqual({ message: "Purchase accepted, processing" });
+    await processNextPurchaseMessage();
 
     const transaction = await database("transactions")
       .where({ user_id: userId, product_id: product.id })

@@ -1,3 +1,4 @@
+import type { Channel } from "amqplib";
 import type { Knex } from "knex";
 
 import { database } from "../database";
@@ -11,8 +12,11 @@ import { flashSaleService, FlashSaleService } from "../flash-sale/service";
 import { StockReservationStatus } from "../product/dto/reserve-stock";
 import { ProductRepository } from "../product/repository";
 import { productService, ProductService } from "../product/service";
+import { getPublishChannel } from "../rabbitmq";
+import { assertPurchaseQueue, PURCHASE_QUEUE } from "../rabbitmq/queues";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
+import { PurchaseAcceptanceStatus } from "./dto/purchase-acceptance";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 
 export class PurchaseService {
@@ -20,15 +24,33 @@ export class PurchaseService {
     private readonly db: Knex,
     private readonly productService: ProductService,
     private readonly flashSaleService: FlashSaleService,
+    private readonly getChannel: () => Channel = getPublishChannel,
   ) {}
 
-  public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
+  // Reserves stock synchronously (fast, Redis-only), then hands the actual DB
+  // write off to RabbitMQ so Postgres write throughput is limited by how many
+  // messages the worker processes at once, instead of raw HTTP request volume.
+  public async purchaseProduct(
+    input: PurchaseProductInput,
+  ): Promise<PurchaseAcceptanceStatus> {
     const shouldProceed = await this.reserveStock(input);
 
     if (!shouldProceed) {
-      return;
+      return PurchaseAcceptanceStatus.ALREADY_COMPLETED;
     }
 
+    const channel = this.getChannel();
+    await assertPurchaseQueue(channel);
+    channel.sendToQueue(PURCHASE_QUEUE, Buffer.from(JSON.stringify(input)), {
+      persistent: true,
+    });
+
+    return PurchaseAcceptanceStatus.ACCEPTED;
+  }
+
+  // Performs the actual DB write for a reserved purchase. Called by the purchase worker
+  // after consuming the message published in purchaseProduct().
+  public async completePurchase(input: PurchaseProductInput): Promise<void> {
     try {
       await this.db.transaction(
         async (trx: Knex.Transaction): Promise<void> => {

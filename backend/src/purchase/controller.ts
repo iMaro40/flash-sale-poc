@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
 import { withRetry } from "../utils/with-retry";
+import { PurchaseAcceptanceStatus } from "./dto/purchase-acceptance";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 import { purchaseService } from "./service";
 
@@ -12,12 +13,20 @@ export const purchaseProductHandler = async (
   try {
     const input = response.locals.requestData as PurchaseProductInput;
 
-    await withRetry(async (): Promise<void> => {
-      await purchaseService.purchaseProduct(input);
-    });
+    const status = await withRetry(
+      async (): Promise<PurchaseAcceptanceStatus> => {
+        return purchaseService.purchaseProduct(input);
+      },
+    );
 
-    return response.status(201).json({
-      message: "Purchase created",
+    if (status === PurchaseAcceptanceStatus.ALREADY_COMPLETED) {
+      return response.status(200).json({
+        message: "Purchase already completed",
+      });
+    }
+
+    return response.status(202).json({
+      message: "Purchase accepted, processing",
     });
   } catch (error) {
     next(error);

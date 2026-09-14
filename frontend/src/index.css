@@ -33,6 +33,9 @@ input:focus-visible, button:focus-visible { outline: 3px solid #6ac5b6; outline-
 .sales-section { margin-top: 32px; padding: 24px; background: white; border: 1px solid #dce4e9; border-radius: 16px; }
 .sales-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .sales-heading h2 { margin: 0; }
+.sales-controls { display: flex; align-items: end; gap: 12px; margin-left: auto; }
+.sales-controls label { margin: 0; min-width: min(260px, 45vw); }
+.sales-controls input { margin-top: 4px; }
 .sales-heading p { font-size: 0.85rem; overflow-wrap: anywhere; }
 .sales-heading button { width: auto; flex-shrink: 0; }
 .table-scroll { overflow-x: auto; margin-top: 20px; }
@@ -45,3 +48,4 @@ td { overflow-wrap: anywhere; }
 .sale-status { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 4px 8px; border-radius: 6px; background: #edf0f3; }
 .sale-status.active { color: #09675e; background: #e6f3ef; }
 .sale-status.upcoming { color: #2458a0; background: #eaf1fc; }
+@media (max-width: 600px) { .sales-controls { width: 100%; margin-left: 0; } .sales-controls label { flex: 1; min-width: 0; } }

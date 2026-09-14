@@ -12,12 +12,14 @@
     "test": "vitest run",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "worker:reconcile-stock": "tsx src/jobs/reconcile-stock-worker.ts"
+    "worker:reconcile-stock": "tsx src/jobs/reconcile-stock-worker.ts",
+    "worker:purchase": "tsx src/jobs/purchase-worker.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "amqplib": "^2.0.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -27,17 +29,18 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/amqplib": "^0.10.8",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.2",
     "@types/pg": "^8.23.1",
+    "@types/supertest": "^6.0.3",
     "eslint": "^10.10.0",
     "knex": "^3.3.0",
+    "supertest": "^7.1.4",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.70.0",
-    "supertest": "^7.1.4",
-    "@types/supertest": "^6.0.3",
     "vitest": "^3.2.4"
   }
 }
