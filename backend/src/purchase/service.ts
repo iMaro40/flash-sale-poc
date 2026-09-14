@@ -97,6 +97,7 @@ export class PurchaseService {
       reservation = await this.productService.reserveStockByProductId(input);
     }
 
+    // Only proceeds if stock is successfully reserved
     switch (reservation.status) {
       case StockReservationStatus.RESERVED:
         return true;
