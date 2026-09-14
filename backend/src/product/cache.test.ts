@@ -131,7 +131,7 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    await cache.completeStockReservation({
+    await cache.markStockReservationAsCompleted({
       productId: product.id,
       userId: "user-1",
       idempotencyKey: "idem-1",

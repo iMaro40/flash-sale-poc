@@ -68,7 +68,7 @@ export class PurchaseService {
       throw error;
     }
 
-    await this.productService.completeStockReservation({
+    await this.productService.markStockReservationAsCompleted({
       productId: input.productId,
       userId: input.userId,
       idempotencyKey: input.idempotencyKey,
@@ -81,6 +81,7 @@ export class PurchaseService {
   private async reserveStock(input: PurchaseProductInput): Promise<boolean> {
     let reservation = await this.productService.reserveStockByProductId(input);
 
+    // Cache the flash sale status then attempt to reserve again
     if (
       reservation.status === StockReservationStatus.FLASH_SALE_CACHE_MISSING
     ) {

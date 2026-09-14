@@ -212,7 +212,7 @@ describe("FlashSaleService.createFlashSale", () => {
   };
 
   it("creates a flash sale for an existing product without overlap", async () => {
-    const { service, productService, repository } = createService();
+    const { service, productService, repository, cache } = createService();
     productService.getProductById.mockResolvedValue(product);
     repository.findOverlappingFlashSaleByProductId.mockResolvedValue(undefined);
     repository.createFlashSale.mockResolvedValue("flash-sale-1");

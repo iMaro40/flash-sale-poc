@@ -19,13 +19,13 @@ const createService = (): {
   service: PurchaseService;
   transaction: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
-  completeStockReservation: ReturnType<typeof vi.fn>;
+  markStockReservationAsCompleted: ReturnType<typeof vi.fn>;
   deleteProductDetailsCache: ReturnType<typeof vi.fn>;
   findActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
 } => {
   const transaction = vi.fn();
   const reserveStockByProductId = vi.fn();
-  const completeStockReservation = vi.fn();
+  const markStockReservationAsCompleted = vi.fn();
   const deleteProductDetailsCache = vi.fn();
   const findActiveFlashSaleByProductId = vi.fn();
 
@@ -34,7 +34,7 @@ const createService = (): {
     {
       reserveStockByProductId,
       releaseStockByProductId: vi.fn(),
-      completeStockReservation,
+      markStockReservationAsCompleted,
       deleteProductDetailsCache,
     } as unknown as ProductService,
     {
@@ -46,7 +46,7 @@ const createService = (): {
     service,
     transaction,
     reserveStockByProductId,
-    completeStockReservation,
+    markStockReservationAsCompleted,
     deleteProductDetailsCache,
     findActiveFlashSaleByProductId,
   };
@@ -70,7 +70,7 @@ describe("PurchaseService.purchaseProduct", () => {
       service,
       transaction,
       reserveStockByProductId,
-      completeStockReservation,
+      markStockReservationAsCompleted,
       deleteProductDetailsCache,
     } = createService();
     transaction.mockResolvedValue(undefined);
@@ -82,7 +82,7 @@ describe("PurchaseService.purchaseProduct", () => {
     await expect(service.purchaseProduct(input)).resolves.toBeUndefined();
 
     expect(transaction).toHaveBeenCalledOnce();
-    expect(completeStockReservation).toHaveBeenCalledWith(input);
+    expect(markStockReservationAsCompleted).toHaveBeenCalledWith(input);
     expect(deleteProductDetailsCache).toHaveBeenCalledWith(input.productId);
   });
 

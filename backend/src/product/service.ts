@@ -74,10 +74,10 @@ export class ProductService {
     return reservation;
   }
 
-  public async completeStockReservation(
+  public async markStockReservationAsCompleted(
     input: ReserveStockInput,
   ): Promise<void> {
-    await this.productCache.completeStockReservation(input);
+    await this.productCache.markStockReservationAsCompleted(input);
   }
 
   public async releaseStockByProductId(

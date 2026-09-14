@@ -28,7 +28,7 @@ const createProductCache = (): {
   setStockByProductId: ReturnType<typeof vi.fn>;
   deleteProductDetails: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
-  completeStockReservation: ReturnType<typeof vi.fn>;
+  markStockReservationAsCompleted: ReturnType<typeof vi.fn>;
   releaseStockByProductId: ReturnType<typeof vi.fn>;
 } => ({
   getProductById: vi.fn(),
@@ -37,7 +37,7 @@ const createProductCache = (): {
   setStockByProductId: vi.fn(),
   deleteProductDetails: vi.fn(),
   reserveStockByProductId: vi.fn(),
-  completeStockReservation: vi.fn(),
+  markStockReservationAsCompleted: vi.fn(),
   releaseStockByProductId: vi.fn(),
 });
 
@@ -223,7 +223,7 @@ describe("ProductService.reserveStockByProductId", () => {
   });
 });
 
-describe("ProductService.completeStockReservation", () => {
+describe("ProductService.markStockReservationAsCompleted", () => {
   it("delegates to ProductCache", async () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
@@ -237,9 +237,11 @@ describe("ProductService.completeStockReservation", () => {
       idempotencyKey: "idem-1",
     };
 
-    await service.completeStockReservation(input);
+    await service.markStockReservationAsCompleted(input);
 
-    expect(productCache.completeStockReservation).toHaveBeenCalledWith(input);
+    expect(productCache.markStockReservationAsCompleted).toHaveBeenCalledWith(
+      input,
+    );
   });
 });
 

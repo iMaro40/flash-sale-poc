@@ -1,18 +1,17 @@
 import type { RedisClientType } from "redis";
 
+import { redisKeys } from "../redis/keys";
 import type { FlashSale } from "./model";
 
 export class FlashSaleCache {
   public constructor(private readonly redis: RedisClientType) {}
 
-  private getWindowKey(productId: string): string {
-    return `flash-sale:{${productId}}:window`;
-  }
-
   public async getActiveFlashSaleByProductId(
     productId: string,
   ): Promise<FlashSale | undefined> {
-    const cachedFlashSale = await this.redis.get(`flash-sale:${productId}`);
+    const cachedFlashSale = await this.redis.get(
+      redisKeys.flashSaleDetails(productId),
+    );
 
     if (!cachedFlashSale) {
       return undefined;
@@ -30,7 +29,7 @@ export class FlashSaleCache {
   public async setActiveFlashSale(flashSale: FlashSale): Promise<void> {
     await Promise.all([
       this.redis.set(
-        `flash-sale:${flashSale.productId}`,
+        redisKeys.flashSaleDetails(flashSale.productId),
         JSON.stringify(flashSale),
         { EX: 300 },
       ),
@@ -39,7 +38,7 @@ export class FlashSaleCache {
   }
 
   public async setFlashSaleWindow(flashSale: FlashSale): Promise<void> {
-    const windowKey = this.getWindowKey(flashSale.productId);
+    const windowKey = redisKeys.flashSaleWindow(flashSale.productId);
     const expiresAtSeconds =
       Math.ceil(flashSale.endTime.getTime() / 1000) + 24 * 60 * 60;
 
