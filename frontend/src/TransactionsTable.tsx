@@ -42,6 +42,26 @@ export default function TransactionsTable({ revision }: { revision: number }) {
     return () => controller.abort()
   }, [requestRevision])
 
+  // Transactions are processed asynchronously by the purchase worker, so poll for status updates.
+  useEffect(() => {
+    const controller = new AbortController()
+    async function pollTransactions() {
+      try {
+        const response = await fetch('/api/transactions', { signal: controller.signal })
+        if (!response.ok) return
+        const transactions: Transaction[] = await response.json()
+        if (!controller.signal.aborted) setState((previous) => ({ ...previous, transactions, error: '' }))
+      } catch {
+        // Ignore poll errors; the next tick will retry.
+      }
+    }
+    const intervalId = setInterval(() => void pollTransactions(), 3000)
+    return () => {
+      controller.abort()
+      clearInterval(intervalId)
+    }
+  }, [])
+
   return (
     <section className="sales-section" aria-labelledby="transactions-heading">
       <div className="sales-heading">
