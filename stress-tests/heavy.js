@@ -2,12 +2,14 @@ import { createPurchaseLoadTest } from "./runner.js";
 
 const test = createPurchaseLoadTest({
   productNamePrefix: "k6-heavy-product",
-  initialStock: Number(__ENV.INITIAL_STOCK || 18000),
+  // Tuned from observed sustained throughput (~700 completions/sec at pool max:10) so stock runs
+  // out near the end of the sustained spike, not before or never.
+  initialStock: Number(__ENV.INITIAL_STOCK || 26000),
   doublePurchaseRate: Number(__ENV.DOUBLE_PURCHASE_RATE || 0.02),
   stages: [
-    { duration: "10s", target: 300 }, // gradual increase
-    { duration: "5s", target: 1500 }, // sharp spike in the middle
-    { duration: "20s", target: 1500 }, // sustained spike (stock runs out near the end of this)
+    { duration: "10s", target: 500 }, // gradual increase
+    { duration: "5s", target: 2500 }, // sharp spike in the middle
+    { duration: "20s", target: 2500 }, // sustained spike (stock runs out near the end of this)
     { duration: "5s", target: 0 }, // ramp down
   ],
 });

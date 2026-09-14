@@ -1,7 +1,9 @@
 {
-  "durationSeconds": "30.0",
-  "rps": "4211.5",
-  "p95Ms": "81.3",
-  "p99Ms": "161.6",
-  "errorRatePercent": "0.00"
+  "durationSeconds": "42.5",
+  "rps": "1391.3",
+  "avgLatencySeconds": "1.241",
+  "p95LatencySeconds": "3.478",
+  "p99LatencySeconds": "11.361",
+  "errorRatePercent": "0.00",
+  "stockRanOutAtSeconds": "31.1"
 }

@@ -1,6 +1,6 @@
 import http from "k6/http";
 import { check } from "k6";
-import { Counter } from "k6/metrics";
+import { Counter, Trend } from "k6/metrics";
 
 // Shared k6 test logic for the purchase-flow load test. Individual profiles (light/medium/heavy)
 // call createPurchaseLoadTest(config) and re-export the returned lifecycle functions.
@@ -26,6 +26,14 @@ export function createPurchaseLoadTest(config) {
   const doublePurchaseBothSucceeded = new Counter(
     "double_purchase_both_succeeded",
   );
+  // Records seconds-since-test-start for every genuine out-of-stock 409; the metric's min is
+  // effectively "when stock started running out".
+  const outOfStockElapsedSeconds = new Trend("out_of_stock_elapsed_seconds");
+
+  // 409 is shared by OutOfStockError, DuplicateTransactionError, ProductAlreadyPurchasedError, and
+  // TransactionInProgressError, so the status code alone can't tell them apart.
+  const isRealOutOfStock = (res) =>
+    res.status === 409 && res.body?.includes("out of stock");
 
   const options = {
     scenarios: {
@@ -74,7 +82,7 @@ export function createPurchaseLoadTest(config) {
       );
     }
 
-    return { productId };
+    return { productId, testStartMs: Date.now() };
   }
 
   function vuFunction(data) {
@@ -100,6 +108,8 @@ export function createPurchaseLoadTest(config) {
 
       const [first, second] = responses;
 
+      // These are expected to conflict with each other regardless of real stock levels, so they're
+      // excluded from the depletion-timestamp measurement.
       if (first.status === 201) purchased.add(1);
       else if (first.status === 409) outOfStock.add(1);
       else if (first.status === 429) rateLimited.add(1);
@@ -127,6 +137,9 @@ export function createPurchaseLoadTest(config) {
       purchased.add(1);
     } else if (res.status === 409) {
       outOfStock.add(1);
+      if (isRealOutOfStock(res)) {
+        outOfStockElapsedSeconds.add((Date.now() - data.testStartMs) / 1000);
+      }
     } else if (res.status === 429) {
       rateLimited.add(1);
     } else {
@@ -169,6 +182,8 @@ export function createPurchaseLoadTest(config) {
     const maxVUs = data.metrics.vus_max?.values.max ?? 0;
     const percent = (n) =>
       totalRequests > 0 ? ((n / totalRequests) * 100).toFixed(1) : "0.0";
+    const stockRanOutAtSeconds =
+      data.metrics.out_of_stock_elapsed_seconds?.values.min;
 
     const lines = [
       "",
@@ -184,6 +199,10 @@ export function createPurchaseLoadTest(config) {
       "",
       `Double-purchase attempts:      ${doublePurchaseAttemptsCount}`,
       `Double-purchase BOTH succeeded (bug!): ${doublePurchaseBothSucceededCount}`,
+      "",
+      stockRanOutAtSeconds !== undefined
+        ? `Stock started running out at: ${stockRanOutAtSeconds.toFixed(1)}s into the test`
+        : "Stock started running out at: never (stock never depleted)",
       "",
       "Latency (s)",
       `  avg:  ${durationSeconds("avg")}`,
@@ -206,11 +225,11 @@ export function createPurchaseLoadTest(config) {
     const jsonSummary = {
       durationSeconds: durationSecondsTotal.toFixed(1),
       rps: rps.toFixed(1),
-      p95Ms:
-        data.metrics.http_req_duration?.values["p(95)"]?.toFixed(1) ?? "n/a",
-      p99Ms:
-        data.metrics.http_req_duration?.values["p(99)"]?.toFixed(1) ?? "n/a",
+      avgLatencySeconds: durationSeconds("avg"),
+      p95LatencySeconds: durationSeconds("p(95)"),
+      p99LatencySeconds: durationSeconds("p(99)"),
       errorRatePercent: errorRatePercent.toFixed(2),
+      stockRanOutAtSeconds: stockRanOutAtSeconds?.toFixed(1) ?? "n/a",
     };
 
     return {
