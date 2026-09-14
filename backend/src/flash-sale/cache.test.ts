@@ -16,6 +16,8 @@ describe("FlashSaleCache", () => {
     const redis = {
       get: vi.fn().mockResolvedValue(JSON.stringify(flashSale)),
       set: vi.fn(),
+      hSet: vi.fn(),
+      expireAt: vi.fn(),
     };
     const cache = new FlashSaleCache(redis as never);
 
@@ -33,6 +35,8 @@ describe("FlashSaleCache", () => {
     const redis = {
       get: vi.fn().mockResolvedValue(null),
       set: vi.fn(),
+      hSet: vi.fn(),
+      expireAt: vi.fn(),
     };
     const cache = new FlashSaleCache(redis as never);
 
@@ -45,6 +49,8 @@ describe("FlashSaleCache", () => {
     const redis = {
       get: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
       set: vi.fn(),
+      hSet: vi.fn(),
+      expireAt: vi.fn(),
     };
     const cache = new FlashSaleCache(redis as never);
 
@@ -57,6 +63,8 @@ describe("FlashSaleCache", () => {
     const redis = {
       get: vi.fn(),
       set: vi.fn().mockResolvedValue("OK"),
+      hSet: vi.fn().mockResolvedValue(2),
+      expireAt: vi.fn().mockResolvedValue(true),
     };
     const cache = new FlashSaleCache(redis as never);
 
@@ -67,12 +75,25 @@ describe("FlashSaleCache", () => {
       JSON.stringify(flashSale),
       { EX: 300 },
     );
+    expect(redis.hSet).toHaveBeenCalledWith(
+      "flash-sale:{product-1}:window",
+      {
+        startTime: flashSale.startTime.getTime().toString(),
+        endTime: flashSale.endTime.getTime().toString(),
+      },
+    );
+    expect(redis.expireAt).toHaveBeenCalledWith(
+      "flash-sale:{product-1}:window",
+      Math.ceil(flashSale.endTime.getTime() / 1000) + 24 * 60 * 60,
+    );
   });
 
   it("throws when Redis set fails", async () => {
     const redis = {
       get: vi.fn(),
       set: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
+      hSet: vi.fn(),
+      expireAt: vi.fn(),
     };
     const cache = new FlashSaleCache(redis as never);
 

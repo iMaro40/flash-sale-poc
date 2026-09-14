@@ -2,7 +2,12 @@ import { database } from "../database";
 import { redisClient } from "../redis";
 import { ProductCache } from "./cache";
 import type { CreateProductInput } from "./dto/create-product";
-import type { ReleaseStockInput, ReserveStockInput } from "./dto/reserve-stock";
+import {
+  type ReleaseStockInput,
+  type ReserveStockInput,
+  type StockReservationResult,
+  StockReservationStatus,
+} from "./dto/reserve-stock";
 import type { Product } from "./model";
 import { ProductRepository } from "./repository";
 
@@ -48,21 +53,31 @@ export class ProductService {
     return product;
   }
 
+  public async deleteProductDetailsCache(productId: string): Promise<void> {
+    await this.productCache.deleteProductDetails(productId);
+  }
+
   public async reserveStockByProductId(
     input: ReserveStockInput,
-  ): Promise<number | undefined> {
-    let remainingStock = await this.productCache.reserveStockByProductId(input);
+  ): Promise<StockReservationResult> {
+    let reservation = await this.productCache.reserveStockByProductId(input);
 
-    if (remainingStock === undefined) {
+    if (reservation.status === StockReservationStatus.PRODUCT_CACHE_MISSING) {
       // Lazy pre-warming on cache miss
       const product = await this.productRepository.findById(input.productId);
       if (product) {
         await this.productCache.setProduct(product);
-        remainingStock = await this.productCache.reserveStockByProductId(input);
+        reservation = await this.productCache.reserveStockByProductId(input);
       }
     }
 
-    return remainingStock;
+    return reservation;
+  }
+
+  public async completeStockReservation(
+    input: ReserveStockInput,
+  ): Promise<void> {
+    await this.productCache.completeStockReservation(input);
   }
 
   public async releaseStockByProductId(

@@ -5,6 +5,10 @@ import type { FlashSale } from "./model";
 export class FlashSaleCache {
   public constructor(private readonly redis: RedisClientType) {}
 
+  private getWindowKey(productId: string): string {
+    return `flash-sale:{${productId}}:window`;
+  }
+
   public async getActiveFlashSaleByProductId(
     productId: string,
   ): Promise<FlashSale | undefined> {
@@ -24,10 +28,25 @@ export class FlashSaleCache {
   }
 
   public async setActiveFlashSale(flashSale: FlashSale): Promise<void> {
-    await this.redis.set(
-      `flash-sale:${flashSale.productId}`,
-      JSON.stringify(flashSale),
-      { EX: 300 },
-    );
+    await Promise.all([
+      this.redis.set(
+        `flash-sale:${flashSale.productId}`,
+        JSON.stringify(flashSale),
+        { EX: 300 },
+      ),
+      this.setFlashSaleWindow(flashSale),
+    ]);
+  }
+
+  public async setFlashSaleWindow(flashSale: FlashSale): Promise<void> {
+    const windowKey = this.getWindowKey(flashSale.productId);
+    const expiresAtSeconds =
+      Math.ceil(flashSale.endTime.getTime() / 1000) + 24 * 60 * 60;
+
+    await this.redis.hSet(windowKey, {
+      startTime: flashSale.startTime.getTime().toString(),
+      endTime: flashSale.endTime.getTime().toString(),
+    });
+    await this.redis.expireAt(windowKey, expiresAtSeconds);
   }
 }

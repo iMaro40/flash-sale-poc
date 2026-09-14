@@ -8,14 +8,11 @@ import { ProductAlreadyPurchasedError } from "../errors/product-already-purchase
 import { ProductNotFoundError } from "../errors/product-not-found";
 import { TransactionInProgressError } from "../errors/transaction-in-progress";
 import { flashSaleService, FlashSaleService } from "../flash-sale/service";
+import { StockReservationStatus } from "../product/dto/reserve-stock";
 import { ProductRepository } from "../product/repository";
 import { productService, ProductService } from "../product/service";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
-import {
-  transactionService,
-  TransactionService,
-} from "../transactions/service";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 
 export class PurchaseService {
@@ -23,25 +20,13 @@ export class PurchaseService {
     private readonly db: Knex,
     private readonly productService: ProductService,
     private readonly flashSaleService: FlashSaleService,
-    private readonly transactionService: TransactionService,
   ) {}
 
   public async purchaseProduct(input: PurchaseProductInput): Promise<void> {
-    const shouldProceed = await this.validatePurchaseProduct(input);
+    const shouldProceed = await this.reserveStock(input);
 
     if (!shouldProceed) {
       return;
-    }
-
-    const remainingCacheStock =
-      await this.productService.reserveStockByProductId({
-        productId: input.productId,
-        userId: input.userId,
-        idempotencyKey: input.idempotencyKey,
-      });
-
-    if (remainingCacheStock !== undefined && remainingCacheStock < 0) {
-      throw new OutOfStockError(input.productId);
     }
 
     try {
@@ -83,65 +68,53 @@ export class PurchaseService {
       throw error;
     }
 
+    await this.productService.completeStockReservation({
+      productId: input.productId,
+      userId: input.userId,
+      idempotencyKey: input.idempotencyKey,
+    });
+    await this.productService.deleteProductDetailsCache(input.productId);
+
     // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
   }
 
-  private async validatePurchaseProduct(
-    input: PurchaseProductInput,
-  ): Promise<boolean> {
-    const activeFlashSale =
-      await this.flashSaleService.findActiveFlashSaleByProductId(
-        input.productId,
-      );
+  private async reserveStock(input: PurchaseProductInput): Promise<boolean> {
+    let reservation = await this.productService.reserveStockByProductId(input);
 
-    if (!activeFlashSale) {
-      throw new ActiveFlashSaleNotFoundError(input.productId);
+    if (
+      reservation.status === StockReservationStatus.FLASH_SALE_CACHE_MISSING
+    ) {
+      const activeFlashSale =
+        await this.flashSaleService.findActiveFlashSaleByProductId(
+          input.productId,
+        );
+
+      if (!activeFlashSale) {
+        throw new ActiveFlashSaleNotFoundError(input.productId);
+      }
+
+      reservation = await this.productService.reserveStockByProductId(input);
     }
 
-    const product = await this.productService.getProductById(input.productId);
-
-    if (!product) {
-      throw new ProductNotFoundError(input.productId);
-    }
-
-    if (product.stock <= 0) {
-      throw new OutOfStockError(input.productId);
-    }
-
-    return this.validateTransaction(input);
-  }
-
-  private async validateTransaction(
-    input: PurchaseProductInput,
-  ): Promise<boolean> {
-    const existingTransaction =
-      await this.transactionService.getTransactionByUserIdAndProductId(
-        input.userId,
-        input.productId,
-      );
-
-    if (!existingTransaction) {
-      return true;
-    }
-
-    if (existingTransaction.status === TransactionStatus.COMPLETED) {
-      if (existingTransaction.idempotencyKey === input.idempotencyKey) {
-        // An existing COMPLETED transaction already exists so return false to indicate idempotent success.
+    switch (reservation.status) {
+      case StockReservationStatus.RESERVED:
+        return true;
+      case StockReservationStatus.IDEMPOTENT_SUCCESS:
         return false;
-      }
-
-      throw new ProductAlreadyPurchasedError(input.userId, input.productId);
-    }
-
-    if (existingTransaction.status === TransactionStatus.PENDING) {
-      if (existingTransaction.idempotencyKey === input.idempotencyKey) {
+      case StockReservationStatus.DUPLICATE_TRANSACTION:
         throw new DuplicateTransactionError(input.idempotencyKey);
-      }
-
-      throw new TransactionInProgressError(input.productId);
+      case StockReservationStatus.TRANSACTION_IN_PROGRESS:
+        throw new TransactionInProgressError(input.productId);
+      case StockReservationStatus.ALREADY_PURCHASED:
+        throw new ProductAlreadyPurchasedError(input.userId, input.productId);
+      case StockReservationStatus.OUT_OF_STOCK:
+        throw new OutOfStockError(input.productId);
+      case StockReservationStatus.PRODUCT_CACHE_MISSING:
+        throw new ProductNotFoundError(input.productId);
+      case StockReservationStatus.FLASH_SALE_CACHE_MISSING:
+      case StockReservationStatus.SALE_INACTIVE:
+        throw new ActiveFlashSaleNotFoundError(input.productId);
     }
-
-    return true;
   }
 }
 
@@ -149,5 +122,4 @@ export const purchaseService: PurchaseService = new PurchaseService(
   database,
   productService,
   flashSaleService,
-  transactionService,
 );

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ProductCache } from "./cache";
+import { StockReservationStatus } from "./dto/reserve-stock";
 import type { Product } from "./model";
 
 const product: Product = {
@@ -35,7 +36,7 @@ describe("ProductCache", () => {
     );
   });
 
-  it("deletes a product from Redis", async () => {
+  it("deletes cached product details without deleting the stock counter", async () => {
     const redis = {
       get: vi.fn(),
       set: vi.fn(),
@@ -43,12 +44,9 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    await cache.deleteProduct(product.id);
+    await cache.deleteProductDetails(product.id);
 
-    expect(redis.del).toHaveBeenCalledWith([
-      `product:${product.id}`,
-      `product:stock:${product.id}`,
-    ]);
+    expect(redis.del).toHaveBeenCalledWith(`product:${product.id}`);
   });
 
   it("throws when Redis del fails", async () => {
@@ -59,14 +57,14 @@ describe("ProductCache", () => {
     };
     const cache = new ProductCache(redis as never);
 
-    await expect(cache.deleteProduct(product.id)).rejects.toThrow(
+    await expect(cache.deleteProductDetails(product.id)).rejects.toThrow(
       "Redis unavailable",
     );
   });
 
   it("decrements stock via Redis eval Lua script with reservation key", async () => {
     const redis = {
-      eval: vi.fn().mockResolvedValue(9),
+      eval: vi.fn().mockResolvedValue([0, 9]),
     };
     const cache = new ProductCache(redis as never);
 
@@ -76,22 +74,27 @@ describe("ProductCache", () => {
       idempotencyKey: "idem-1",
     });
 
-    expect(remainingStock).toBe(9);
+    expect(remainingStock).toEqual({
+      status: StockReservationStatus.RESERVED,
+      remainingStock: 9,
+    });
     expect(redis.eval).toHaveBeenCalledWith(
       expect.stringContaining("redis.call('DECR'"),
       {
         keys: [
-          `product:stock:${product.id}`,
-          `reservation:${product.id}:user-1:idem-1`,
+          `product:{${product.id}}:stock`,
+          `flash-sale:{${product.id}}:window`,
+          `product:{${product.id}}:buyer:user-1`,
+          `product:{${product.id}}:reservation:user-1:idem-1`,
         ],
-        arguments: [],
+        arguments: [expect.any(String), "idem-1"],
       },
     );
   });
 
-  it("returns undefined when key is missing in cache (eval returns -1)", async () => {
+  it("reports when the product stock key is missing", async () => {
     const redis = {
-      eval: vi.fn().mockResolvedValue(-1),
+      eval: vi.fn().mockResolvedValue([5]),
     };
     const cache = new ProductCache(redis as never);
 
@@ -101,7 +104,10 @@ describe("ProductCache", () => {
       idempotencyKey: "idem-1",
     });
 
-    expect(remainingStock).toBeUndefined();
+    expect(remainingStock).toEqual({
+      status: StockReservationStatus.PRODUCT_CACHE_MISSING,
+      remainingStock: undefined,
+    });
   });
 
   it("throws when Redis eval fails", async () => {
@@ -117,6 +123,31 @@ describe("ProductCache", () => {
         idempotencyKey: "idem-1",
       }),
     ).rejects.toThrow("Redis unavailable");
+  });
+
+  it("marks a stock reservation as completed", async () => {
+    const redis = {
+      eval: vi.fn().mockResolvedValue(1),
+    };
+    const cache = new ProductCache(redis as never);
+
+    await cache.completeStockReservation({
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    });
+
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringContaining("'completed:'"),
+      {
+        keys: [
+          `product:{${product.id}}:buyer:user-1`,
+          `product:{${product.id}}:reservation:user-1:idem-1`,
+          `flash-sale:{${product.id}}:window`,
+        ],
+        arguments: ["idem-1"],
+      },
+    );
   });
 
   it("releases stock in Redis via eval Lua script", async () => {
@@ -135,10 +166,11 @@ describe("ProductCache", () => {
       expect.stringContaining("redis.call('INCR'"),
       {
         keys: [
-          `product:stock:${product.id}`,
-          `reservation:${product.id}:user-1:idem-1`,
+          `product:{${product.id}}:stock`,
+          `product:{${product.id}}:buyer:user-1`,
+          `product:{${product.id}}:reservation:user-1:idem-1`,
         ],
-        arguments: [],
+        arguments: ["idem-1"],
       },
     );
   });

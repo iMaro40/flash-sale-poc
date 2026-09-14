@@ -43,9 +43,11 @@ const createProductService = (): {
 const createFlashSaleCache = (): {
   getActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
   setActiveFlashSale: ReturnType<typeof vi.fn>;
+  setFlashSaleWindow: ReturnType<typeof vi.fn>;
 } => ({
   getActiveFlashSaleByProductId: vi.fn(),
   setActiveFlashSale: vi.fn(),
+  setFlashSaleWindow: vi.fn(),
 });
 
 const createService = (): {
@@ -143,6 +145,7 @@ describe("FlashSaleService.findActiveFlashSaleByProductId", () => {
       ...flashSale,
       status: FlashSaleStatus.ACTIVE,
     });
+    expect(cache.setFlashSaleWindow).toHaveBeenCalledWith(flashSale);
     expect(repository.findActiveFlashSaleByProductId).not.toHaveBeenCalled();
   });
 
@@ -204,8 +207,8 @@ describe("FlashSaleService.findActiveFlashSaleByProductId", () => {
 describe("FlashSaleService.createFlashSale", () => {
   const input: CreateFlashSaleInput = {
     productId: product.id,
-    startTime: new Date("2026-09-12T10:00:00.000Z"),
-    endTime: new Date("2026-09-12T11:00:00.000Z"),
+    startTime: new Date(Date.now() + 60_000),
+    endTime: new Date(Date.now() + 120_000),
   };
 
   it("creates a flash sale for an existing product without overlap", async () => {
@@ -218,6 +221,11 @@ describe("FlashSaleService.createFlashSale", () => {
 
     expect(result).toBe("flash-sale-1");
     expect(repository.createFlashSale).toHaveBeenCalledWith(input);
+    expect(cache.setFlashSaleWindow).toHaveBeenCalledWith({
+      id: "flash-sale-1",
+      ...input,
+      status: FlashSaleStatus.UPCOMING,
+    });
   });
 
   it("throws when the product does not exist", async () => {

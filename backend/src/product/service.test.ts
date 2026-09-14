@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ProductCache } from "./cache";
 import type { CreateProductInput } from "./dto/create-product";
+import { StockReservationStatus } from "./dto/reserve-stock";
 import type { Product } from "./model";
 import type { ProductRepository } from "./repository";
 import { ProductService } from "./service";
@@ -23,12 +24,16 @@ const createProductRepository = (): {
 const createProductCache = (): {
   getProductById: ReturnType<typeof vi.fn>;
   setProduct: ReturnType<typeof vi.fn>;
+  deleteProductDetails: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
+  completeStockReservation: ReturnType<typeof vi.fn>;
   releaseStockByProductId: ReturnType<typeof vi.fn>;
 } => ({
   getProductById: vi.fn(),
   setProduct: vi.fn(),
+  deleteProductDetails: vi.fn(),
   reserveStockByProductId: vi.fn(),
+  completeStockReservation: vi.fn(),
   releaseStockByProductId: vi.fn(),
 });
 
@@ -120,11 +125,29 @@ describe("ProductService.createProduct", () => {
   });
 });
 
+describe("ProductService.deleteProductDetailsCache", () => {
+  it("delegates deleting cached product details to ProductCache", async () => {
+    const productRepository = createProductRepository();
+    const productCache = createProductCache();
+    const service = new ProductService(
+      productRepository as unknown as ProductRepository,
+      productCache as unknown as ProductCache,
+    );
+
+    await service.deleteProductDetailsCache(product.id);
+
+    expect(productCache.deleteProductDetails).toHaveBeenCalledWith(product.id);
+  });
+});
+
 describe("ProductService.reserveStockByProductId", () => {
   it("delegates to ProductCache when stock key exists", async () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
-    productCache.reserveStockByProductId.mockResolvedValue(9);
+    productCache.reserveStockByProductId.mockResolvedValue({
+      status: StockReservationStatus.RESERVED,
+      remainingStock: 9,
+    });
     const service = new ProductService(
       productRepository as unknown as ProductRepository,
       productCache as unknown as ProductCache,
@@ -138,7 +161,10 @@ describe("ProductService.reserveStockByProductId", () => {
 
     const result = await service.reserveStockByProductId(input);
 
-    expect(result).toBe(9);
+    expect(result).toEqual({
+      status: StockReservationStatus.RESERVED,
+      remainingStock: 9,
+    });
     expect(productCache.reserveStockByProductId).toHaveBeenCalledWith(input);
   });
 
@@ -146,8 +172,13 @@ describe("ProductService.reserveStockByProductId", () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
     productCache.reserveStockByProductId
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(9);
+      .mockResolvedValueOnce({
+        status: StockReservationStatus.PRODUCT_CACHE_MISSING,
+      })
+      .mockResolvedValueOnce({
+        status: StockReservationStatus.RESERVED,
+        remainingStock: 9,
+      });
     productRepository.findById.mockResolvedValue(product);
     const service = new ProductService(
       productRepository as unknown as ProductRepository,
@@ -162,10 +193,33 @@ describe("ProductService.reserveStockByProductId", () => {
 
     const result = await service.reserveStockByProductId(input);
 
-    expect(result).toBe(9);
+    expect(result).toEqual({
+      status: StockReservationStatus.RESERVED,
+      remainingStock: 9,
+    });
     expect(productRepository.findById).toHaveBeenCalledWith(product.id);
     expect(productCache.setProduct).toHaveBeenCalledWith(product);
     expect(productCache.reserveStockByProductId).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ProductService.completeStockReservation", () => {
+  it("delegates to ProductCache", async () => {
+    const productRepository = createProductRepository();
+    const productCache = createProductCache();
+    const service = new ProductService(
+      productRepository as unknown as ProductRepository,
+      productCache as unknown as ProductCache,
+    );
+    const input = {
+      productId: product.id,
+      userId: "user-1",
+      idempotencyKey: "idem-1",
+    };
+
+    await service.completeStockReservation(input);
+
+    expect(productCache.completeStockReservation).toHaveBeenCalledWith(input);
   });
 });
 
