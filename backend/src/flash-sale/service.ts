@@ -116,14 +116,20 @@ export class FlashSaleService {
 
     const flashSaleId = await this.flashSaleRepository.createFlashSale(input);
 
-    await this.flashSaleCache.setActiveFlashSale({
+    const flashSale: FlashSale = {
       id: flashSaleId,
       ...input,
       status: this.determineFlashSaleStatus({
         id: flashSaleId,
         ...input,
       }),
-    });
+    };
+
+    // Only cache sales that are active now, otherwise a future sale can overwrite
+    // the currently active sale's cached window and block ongoing purchases.
+    if (flashSale.status === FlashSaleStatus.ACTIVE) {
+      await this.flashSaleCache.setActiveFlashSale(flashSale);
+    }
 
     return flashSaleId;
   }
