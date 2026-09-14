@@ -18,9 +18,7 @@ export const assertPurchaseQueue = async (channel: Channel): Promise<void> => {
   );
   await channel.assertQueue(PURCHASE_QUEUE, {
     durable: true,
-    arguments: {
-      "x-dead-letter-exchange": PURCHASE_DEAD_LETTER_EXCHANGE,
-      "x-dead-letter-routing-key": PURCHASE_QUEUE,
-    },
+    deadLetterExchange: PURCHASE_DEAD_LETTER_EXCHANGE,
+    deadLetterRoutingKey: PURCHASE_QUEUE,
   });
 };
