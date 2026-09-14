@@ -35,6 +35,8 @@ export function createPurchaseLoadTest(config) {
         stages,
       },
     },
+    // p(99) isn't tracked by default; needed for the combined load-test report.
+    summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
   };
 
   // setup() runs once before load starts, outside of VU iterations.
@@ -194,7 +196,31 @@ export function createPurchaseLoadTest(config) {
     // Printed so the run.sh wrapper can pass this into the DB integrity check.
     console.log(`USERS_ATTEMPTED=${usersAttemptedCount}`);
 
-    return { stdout: lines.join("\n") + "\n" };
+    const durationSecondsTotal = (data.state?.testRunDurationMs ?? 0) / 1000;
+    const rps =
+      durationSecondsTotal > 0 ? totalRequests / durationSecondsTotal : 0;
+    // "Error rate" only counts unexpected failures, not the expected 409/429 rejections.
+    const errorRatePercent =
+      totalRequests > 0 ? (otherErrorCount / totalRequests) * 100 : 0;
+
+    const jsonSummary = {
+      durationSeconds: durationSecondsTotal.toFixed(1),
+      rps: rps.toFixed(1),
+      p95Ms:
+        data.metrics.http_req_duration?.values["p(95)"]?.toFixed(1) ?? "n/a",
+      p99Ms:
+        data.metrics.http_req_duration?.values["p(99)"]?.toFixed(1) ?? "n/a",
+      errorRatePercent: errorRatePercent.toFixed(2),
+    };
+
+    return {
+      stdout: lines.join("\n") + "\n",
+      "stress-tests/.last-k6-summary.json": JSON.stringify(
+        jsonSummary,
+        null,
+        2,
+      ),
+    };
   }
 
   return { options, setup, vuFunction, teardown, handleSummary };
