@@ -95,4 +95,16 @@ export class TransactionRepository {
       updated_at: new Date(),
     });
   }
+
+  public async cancelPendingTransactionById(id: string): Promise<boolean> {
+    const updatedRows = await this.db<TransactionDbRow>("transactions")
+      .where("id", id)
+      .andWhere("status", TransactionStatus.PENDING)
+      .update({
+        status: TransactionStatus.CANCELLED,
+        updated_at: new Date(),
+      });
+
+    return updatedRows > 0;
+  }
 }

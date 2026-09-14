@@ -189,7 +189,7 @@ describe("PurchaseService.completePurchase", () => {
 
   const rollbackErrors = [
     new OutOfStockError(input.productId),
-    ...["23505", "23514", "40P01", "40001"].map((code) =>
+    ...["23505", "23514"].map((code) =>
       Object.assign(new Error(code), { code }),
     ),
   ];
@@ -204,6 +204,31 @@ describe("PurchaseService.completePurchase", () => {
         service.completePurchase(input, "transaction-1"),
       ).rejects.toBe(error);
       expect(releaseStockByProductId).toHaveBeenCalledWith(input);
+    },
+  );
+
+  it.each(["40P01", "40001"])(
+    "retains stock for retryable rollback errors: %s",
+    async (code) => {
+      const {
+        service,
+        transaction,
+        releaseStockByProductId,
+        markStockReservationAsCompleted,
+      } = createService();
+      const error = Object.assign(new Error(code), { code });
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      transaction.mockRejectedValue(error);
+
+      await expect(
+        service.completePurchase(input, "transaction-1"),
+      ).rejects.toBe(error);
+      expect(releaseStockByProductId).not.toHaveBeenCalled();
+      expect(markStockReservationAsCompleted).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledWith(
+        "Database transaction outcome is unknown. Need to reconcile inventory.",
+        expect.objectContaining({ error }),
+      );
     },
   );
 

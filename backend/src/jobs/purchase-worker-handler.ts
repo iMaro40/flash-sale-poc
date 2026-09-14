@@ -33,19 +33,23 @@ export const processPurchaseMessage = async (
     console.error("[purchase-worker] Failed to process purchase", error);
 
     if (queuedPurchase) {
-      try {
-        await service.cancelPurchase(
-          queuedPurchase.transactionId,
-          queuedPurchase.input,
-        );
-      } catch (cancellationError) {
-        console.error(
-          "[purchase-worker] Failed to cancel purchase",
-          cancellationError,
-        );
-      }
+      await cancelFailedPurchase(service, queuedPurchase);
     }
 
     channel.nack(message, false, false);
+  }
+};
+
+const cancelFailedPurchase = async (
+  service: Pick<PurchaseService, "cancelPurchase">,
+  queuedPurchase: QueuedPurchase,
+): Promise<void> => {
+  try {
+    await service.cancelPurchase(
+      queuedPurchase.transactionId,
+      queuedPurchase.input,
+    );
+  } catch (error) {
+    console.error("[purchase-worker] Failed to cancel purchase", error);
   }
 };

@@ -67,79 +67,113 @@ export class PurchaseService {
     transactionId: string,
   ): Promise<void> {
     try {
-      await this.db.transaction(
-        async (trx: Knex.Transaction): Promise<void> => {
-          const transactionRepository: TransactionRepository =
-            new TransactionRepository(trx);
-          const productRepository: ProductRepository = new ProductRepository(
-            trx,
-          );
-
-          const transaction = await transactionRepository.getTransactionById(
-            transactionId,
-            true,
-          );
-          if (!transaction) {
-            throw new Error(`Transaction not found: ${transactionId}`);
-          }
-          // Important checks to prevent retries from incorrectly decrementing stock
-          if (transaction.status === TransactionStatus.COMPLETED) {
-            return;
-          }
-          if (transaction.status === TransactionStatus.CANCELLED) {
-            throw new Error(`Transaction already cancelled: ${transactionId}`);
-          }
-
-          const updatedRows = await productRepository.decrementStockByProductId(
-            input.productId,
-          );
-
-          if (updatedRows === 0) {
-            throw new OutOfStockError(input.productId);
-          }
-
-          await transactionRepository.updateTransactionStatusById(
-            transactionId,
-            TransactionStatus.COMPLETED,
-          );
-        },
+      await this.db.transaction((trx: Knex.Transaction) =>
+        this.completePurchaseTransaction(trx, input, transactionId),
       );
     } catch (error) {
-      // Only explicit rollback errors prove that returning the reservation is safe.
-      // A lost COMMIT acknowledgement can mean the transaction actually succeeded.
-      const code =
-        error && typeof error === "object" && "code" in error
-          ? String(error.code)
-          : "";
-      const rolledBack =
-        error instanceof OutOfStockError ||
-        code.startsWith("23") ||
-        code === "40P01" ||
-        code === "40001";
-
-      if (rolledBack) {
-        try {
-          await this.productService.releaseStockByProductId(input);
-        } catch (releaseError) {
-          console.error(
-            "Failed to release rolled-back reservation",
-            releaseError,
-          );
-        }
-      } else {
-        console.error(
-          "Database transaction outcome is unknown. Need to reconcile inventory.",
-          {
-            productId: input.productId,
-            idempotencyKey: input.idempotencyKey,
-            error,
-          },
-        );
-      }
+      await this.handlePurchaseCompletionError(error, input);
       throw error;
     }
 
-    // We don't want Redis blocking the purchase flow at this point since it's already success, so just alert here
+    await this.markReservationAsCompleted(input);
+
+    // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
+  }
+
+  public async cancelPurchase(
+    transactionId: string,
+    input: PurchaseProductInput,
+  ): Promise<void> {
+    const cancelled =
+      await this.transactionRepository.cancelPendingTransactionById(
+        transactionId,
+      );
+
+    if (cancelled) {
+      await this.productService.releaseStockByProductId(input);
+    }
+  }
+
+  private async completePurchaseTransaction(
+    trx: Knex.Transaction,
+    input: PurchaseProductInput,
+    transactionId: string,
+  ): Promise<void> {
+    const transactionRepository: TransactionRepository =
+      new TransactionRepository(trx);
+    const productRepository: ProductRepository = new ProductRepository(trx);
+    const transaction = await transactionRepository.getTransactionById(
+      transactionId,
+      true,
+    );
+
+    if (!transaction) {
+      throw new Error(`Transaction not found: ${transactionId}`);
+    }
+    // Important checks to prevent retries from incorrectly decrementing stock
+    if (transaction.status === TransactionStatus.COMPLETED) {
+      return;
+    }
+    if (transaction.status === TransactionStatus.CANCELLED) {
+      throw new Error(`Transaction already cancelled: ${transactionId}`);
+    }
+
+    const updatedRows = await productRepository.decrementStockByProductId(
+      input.productId,
+    );
+    if (updatedRows === 0) {
+      throw new OutOfStockError(input.productId);
+    }
+
+    await transactionRepository.updateTransactionStatusById(
+      transactionId,
+      TransactionStatus.COMPLETED,
+    );
+  }
+
+  private async handlePurchaseCompletionError(
+    error: unknown,
+    input: PurchaseProductInput,
+  ): Promise<void> {
+    if (this.isDefinitiveRollback(error)) {
+      await this.releaseRolledBackReservation(input);
+      return;
+    }
+
+    console.error(
+      "Database transaction outcome is unknown. Need to reconcile inventory.",
+      {
+        productId: input.productId,
+        idempotencyKey: input.idempotencyKey,
+        error,
+      },
+    );
+  }
+
+  private isDefinitiveRollback(error: unknown): boolean {
+    const code = this.getErrorCode(error);
+    return error instanceof OutOfStockError || code.startsWith("23");
+  }
+
+  private getErrorCode(error: unknown): string {
+    return error && typeof error === "object" && "code" in error
+      ? String(error.code)
+      : "";
+  }
+
+  private async releaseRolledBackReservation(
+    input: PurchaseProductInput,
+  ): Promise<void> {
+    try {
+      await this.productService.releaseStockByProductId(input);
+    } catch (releaseError) {
+      console.error("Failed to release rolled-back reservation", releaseError);
+    }
+  }
+
+  private async markReservationAsCompleted(
+    input: PurchaseProductInput,
+  ): Promise<void> {
     try {
       await this.productService.markStockReservationAsCompleted({
         productId: input.productId,
@@ -149,19 +183,6 @@ export class PurchaseService {
     } catch (error) {
       console.error("Failed to mark stock reservation as completed", error);
     }
-
-    // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
-  }
-
-  public async cancelPurchase(
-    transactionId: string,
-    input: PurchaseProductInput,
-  ): Promise<void> {
-    await this.transactionRepository.updateTransactionStatusById(
-      transactionId,
-      TransactionStatus.CANCELLED,
-    );
-    await this.productService.releaseStockByProductId(input);
   }
 
   private async reserveStock(input: PurchaseProductInput): Promise<boolean> {
