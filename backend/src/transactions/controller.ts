@@ -5,6 +5,19 @@ import { productService } from "../product/service";
 import { TransactionStatus } from "./model";
 import { transactionService } from "./service";
 
+export const getTransactionsHandler = async (
+  _: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<Response | void> => {
+  try {
+    const transactions = await transactionService.getTransactions();
+    return response.status(200).json(transactions);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getTransactionHandler = async (
   _: Request,
   response: Response,

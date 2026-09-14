@@ -45,12 +45,10 @@ export default function FlashSalesTable({ productId, revision }: { productId: st
   return (
     <section className="sales-section" aria-labelledby="sales-heading">
       <div className="sales-heading">
-        <div>
-          <h2 id="sales-heading">Flash Sales</h2>
-          <p>{productId ? `Product: ${productId}` : 'Create a product to see its flash sales here.'}</p>
-        </div>
-        <button type="button" disabled={!productId || loading} onClick={() => setRefresh((value) => value + 1)}>Refresh</button>
+        <h2 id="sales-heading">Flash Sales</h2>
+        <button type="button" aria-label="Refresh flash sales" disabled={!productId || loading} onClick={() => setRefresh((value) => value + 1)}>{loading ? 'Refreshing…' : 'Refresh'}</button>
       </div>
+      <p className="hint">{productId ? `Product: ${productId}` : 'Create a product to see its flash sales here.'}</p>
       <p role="status" className={state.error && !loading ? 'feedback error' : 'feedback'}>
         {loading ? 'Loading flash sales…' : state.error}
       </p>

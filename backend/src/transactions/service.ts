@@ -9,6 +9,10 @@ export class TransactionService {
     private readonly transactionRepository: TransactionRepository,
   ) {}
 
+  public async getTransactions(): Promise<Transaction[]> {
+    return this.transactionRepository.findAll();
+  }
+
   public async getTransactionByIdempotencyKeyAndUserId(
     idempotencyKey: string,
     userId: string,

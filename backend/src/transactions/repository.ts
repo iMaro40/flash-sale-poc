@@ -28,6 +28,15 @@ export class TransactionRepository {
     };
   }
 
+  public async findAll(): Promise<Transaction[]> {
+    const transactions = await this.db<TransactionDbRow>("transactions")
+      .select("*")
+      .orderBy("created_at", "desc")
+      .orderBy("id", "asc");
+
+    return transactions.map((row) => this.mapToTransaction(row));
+  }
+
   public async getTransactionByIdempotencyKeyAndUserId(
     idempotencyKey: string,
     userId: string,

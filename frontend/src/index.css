@@ -31,8 +31,8 @@ input:focus-visible, button:focus-visible { outline: 3px solid #6ac5b6; outline-
 .hint { font-size: 0.85rem; }
 @media (max-width: 850px) { .forms { grid-template-columns: 1fr; } main { padding: 32px 20px; } }
 .sales-section { margin-top: 32px; padding: 24px; background: white; border: 1px solid #dce4e9; border-radius: 16px; }
-.sales-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.sales-heading h2 { margin-top: 0; }
+.sales-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.sales-heading h2 { margin: 0; }
 .sales-heading p { font-size: 0.85rem; overflow-wrap: anywhere; }
 .sales-heading button { width: auto; flex-shrink: 0; }
 .table-scroll { overflow-x: auto; margin-top: 20px; }

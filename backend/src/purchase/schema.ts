@@ -1,11 +1,7 @@
 import { z } from "zod";
 
 export const purchaseProductRequestSchema = z.object({
-  productId: z
-    .string()
-    .trim()
-    .min(1)
-    .regex(/^[^:]+$/, "must not contain ':'"),
+  productId: z.string().trim().uuid(),
   userId: z
     .string()
     .trim()
