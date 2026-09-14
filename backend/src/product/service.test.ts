@@ -23,14 +23,18 @@ const createProductRepository = (): {
 
 const createProductCache = (): {
   getProductById: ReturnType<typeof vi.fn>;
+  getStockByProductId: ReturnType<typeof vi.fn>;
   setProduct: ReturnType<typeof vi.fn>;
+  setStockByProductId: ReturnType<typeof vi.fn>;
   deleteProductDetails: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
   completeStockReservation: ReturnType<typeof vi.fn>;
   releaseStockByProductId: ReturnType<typeof vi.fn>;
 } => ({
   getProductById: vi.fn(),
+  getStockByProductId: vi.fn(),
   setProduct: vi.fn(),
+  setStockByProductId: vi.fn(),
   deleteProductDetails: vi.fn(),
   reserveStockByProductId: vi.fn(),
   completeStockReservation: vi.fn(),
@@ -42,6 +46,7 @@ describe("ProductService.getProductById", () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
     productCache.getProductById.mockResolvedValue(product);
+    productCache.getStockByProductId.mockResolvedValue(product.stock);
     const service = new ProductService(
       productRepository as unknown as ProductRepository,
       productCache as unknown as ProductCache,
@@ -58,6 +63,7 @@ describe("ProductService.getProductById", () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
     productCache.getProductById.mockResolvedValue(undefined);
+    productCache.getStockByProductId.mockResolvedValue(undefined);
     productRepository.findById.mockResolvedValue(product);
     const service = new ProductService(
       productRepository as unknown as ProductRepository,
@@ -69,12 +75,17 @@ describe("ProductService.getProductById", () => {
     expect(result).toEqual(product);
     expect(productRepository.findById).toHaveBeenCalledWith(product.id);
     expect(productCache.setProduct).toHaveBeenCalledWith(product);
+    expect(productCache.setStockByProductId).toHaveBeenCalledWith(
+      product.id,
+      product.stock,
+    );
   });
 
   it("returns undefined and does not cache when the product does not exist", async () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
     productCache.getProductById.mockResolvedValue(undefined);
+    productCache.getStockByProductId.mockResolvedValue(undefined);
     productRepository.findById.mockResolvedValue(undefined);
     const service = new ProductService(
       productRepository as unknown as ProductRepository,
@@ -86,12 +97,17 @@ describe("ProductService.getProductById", () => {
     expect(result).toBeUndefined();
     expect(productRepository.findById).toHaveBeenCalledWith(product.id);
     expect(productCache.setProduct).not.toHaveBeenCalled();
+    expect(productCache.setStockByProductId).toHaveBeenCalledWith(
+      product.id,
+      0,
+    );
   });
 
   it("returns the repository result after writing it to the cache", async () => {
     const productRepository = createProductRepository();
     const productCache = createProductCache();
     productCache.getProductById.mockResolvedValue(undefined);
+    productCache.getStockByProductId.mockResolvedValue(undefined);
     productRepository.findById.mockResolvedValue(product);
     const service = new ProductService(
       productRepository as unknown as ProductRepository,
@@ -100,6 +116,10 @@ describe("ProductService.getProductById", () => {
 
     await expect(service.getProductById(product.id)).resolves.toEqual(product);
     expect(productCache.setProduct).toHaveBeenCalledWith(product);
+    expect(productCache.setStockByProductId).toHaveBeenCalledWith(
+      product.id,
+      product.stock,
+    );
   });
 });
 

@@ -19,10 +19,14 @@ const createService = (): {
   service: PurchaseService;
   transaction: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
+  completeStockReservation: ReturnType<typeof vi.fn>;
+  deleteProductDetailsCache: ReturnType<typeof vi.fn>;
   findActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
 } => {
   const transaction = vi.fn();
   const reserveStockByProductId = vi.fn();
+  const completeStockReservation = vi.fn();
+  const deleteProductDetailsCache = vi.fn();
   const findActiveFlashSaleByProductId = vi.fn();
 
   const service = new PurchaseService(
@@ -30,7 +34,8 @@ const createService = (): {
     {
       reserveStockByProductId,
       releaseStockByProductId: vi.fn(),
-      completeStockReservation: vi.fn(),
+      completeStockReservation,
+      deleteProductDetailsCache,
     } as unknown as ProductService,
     {
       findActiveFlashSaleByProductId,
@@ -41,6 +46,8 @@ const createService = (): {
     service,
     transaction,
     reserveStockByProductId,
+    completeStockReservation,
+    deleteProductDetailsCache,
     findActiveFlashSaleByProductId,
   };
 };
@@ -56,6 +63,27 @@ describe("PurchaseService.purchaseProduct", () => {
       OutOfStockError,
     );
     expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("completes a cached reservation and clears product details after purchase", async () => {
+    const {
+      service,
+      transaction,
+      reserveStockByProductId,
+      completeStockReservation,
+      deleteProductDetailsCache,
+    } = createService();
+    transaction.mockResolvedValue(undefined);
+    reserveStockByProductId.mockResolvedValue({
+      status: StockReservationStatus.RESERVED,
+      remainingStock: 9,
+    });
+
+    await expect(service.purchaseProduct(input)).resolves.toBeUndefined();
+
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(completeStockReservation).toHaveBeenCalledWith(input);
+    expect(deleteProductDetailsCache).toHaveBeenCalledWith(input.productId);
   });
 
   it("returns idempotent success without calling Postgres", async () => {
