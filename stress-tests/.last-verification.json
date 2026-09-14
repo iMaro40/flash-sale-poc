@@ -1,8 +1,0 @@
-{
-  "redisReservationCalls": 0,
-  "redisKeyspaceHits": 125981,
-  "redisKeyspaceMisses": 24803,
-  "postgresTransactionsCompleted": 24802,
-  "postgresTransactionsPending": 0,
-  "postgresDuplicateBuyers": 0
-}
