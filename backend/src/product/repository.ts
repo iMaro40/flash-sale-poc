@@ -19,10 +19,6 @@ export class ProductRepository {
     return this.db<Product>("products").where("id", productId).first();
   }
 
-  public async findAll(): Promise<Product[]> {
-    return this.db<Product>("products").select("id", "name", "stock");
-  }
-
   public async create(input: CreateProductInput): Promise<Product> {
     return this.db.transaction(async (transaction) => {
       // Serialize the check and insert across server instances, even when the table is empty.

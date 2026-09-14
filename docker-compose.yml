@@ -36,25 +36,6 @@ services:
     volumes:
       - flash-sale-rabbitmq-data:/var/lib/rabbitmq
 
-  stock-reconciler:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile.reconcile-stock
-    container_name: flash-sale-stock-reconciler
-    restart: unless-stopped
-    depends_on:
-      - postgres
-      - redis
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: flash_sale
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      RECONCILE_STOCK_INTERVAL_MS: 600000
-
   purchase-worker:
     build:
       context: .
