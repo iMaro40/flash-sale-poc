@@ -17,8 +17,8 @@ export const database: Knex = knex({
   client: "pg",
   connection,
   pool: {
-    min: 0,
-    max: 5,
+    min: 2,
+    max: 10,
   },
 });
 

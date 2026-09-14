@@ -17,8 +17,8 @@ const knexConfig: Knex.Config = {
   client: "pg",
   connection,
   pool: {
-    min: 0,
-    max: 5,
+    min: 2,
+    max: 10,
   },
   migrations: {
     directory: "./src/database/migrations",
