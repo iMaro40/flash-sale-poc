@@ -7,6 +7,12 @@ cd "$(dirname "$0")/.."
 PROFILE="${1:-heavy}"
 if [ $# -gt 0 ]; then shift; fi
 
+# Start every run from a clean slate so results/integrity checks aren't polluted by prior runs.
+echo "Dropping all data before stress test..."
+docker exec flash-sale-postgres psql -U postgres -d flash_sale -q \
+  -c "TRUNCATE TABLE transactions, products, flash_sales RESTART IDENTITY CASCADE;"
+docker exec flash-sale-redis redis-cli FLUSHDB >/dev/null
+
 # Cumulative Redis counters (calls=, keyspace hits/misses) so we can diff before/after the run.
 # `|| true` guards against grep finding no match (e.g. cmdstat not seen yet), which would
 # otherwise kill the script immediately under `set -o pipefail`.
