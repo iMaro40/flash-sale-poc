@@ -63,7 +63,12 @@ console.log(
 );
 console.log(`Lock waits           ${peak(pgLockWaits)}`);
 console.log(`Pending acquires     ${peak(poolPendingAcquires)}`);
-console.log(`Avg acquire wait     ${avg(poolAvgAcquireSeconds).toFixed(3)}s`);
+console.log(
+  `Avg acquire wait     ${avg(poolAvgAcquireSeconds).toFixed(3)}s  (latest 2000 requests)`,
+);
+console.log(
+  `p95 acquire wait     ${avg(poolP95AcquireSeconds).toFixed(3)}s  (latest 2000 requests)`,
+);
 console.log(`Peak acquire wait    ${peak(poolMaxAcquireSeconds).toFixed(3)}s`);
 console.log("");
 console.log("REDIS");
