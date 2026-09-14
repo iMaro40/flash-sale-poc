@@ -62,6 +62,13 @@ export const getTransactionHandler = async (
       });
     }
 
+    if (transaction.status === TransactionStatus.CANCELLED) {
+      return response.status(200).json({
+        code: "TRANSACTION_CANCELLED",
+        message: "Purchase cancelled",
+      });
+    }
+
     return response.status(200).json({
       code: "TRANSACTION_PENDING",
       message: "Processing purchase",
