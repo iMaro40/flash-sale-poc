@@ -20,7 +20,7 @@ export const database: Knex = knex({
   connection,
   pool: {
     min: 2,
-    max: 20,
+    max: 10,
   },
 });
 
@@ -41,7 +41,7 @@ interface PoolWithEvents {
 const pool = (database.client as unknown as { pool: PoolWithEvents }).pool;
 
 // How long requests wait for a pool connection, separate from time spent waiting on a Postgres row
-// lock after a connection is already held (that's trackStockDecrementDuration, in product/repository.ts).
+// lock after a connection is already held (that's getStockDecrementLockWaitStats, in product/repository.ts).
 const acquireDurationSampler = createDurationSampler(2000);
 const acquireStartTimes = new Map<number, number>();
 

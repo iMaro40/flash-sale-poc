@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const POOL_MAX = 20; // must match backend/src/database/index.ts pool.max
+const POOL_MAX = 10; // must match backend/src/database/index.ts pool.max
 
 const profile = process.argv[2] || "run";
 const root = path.resolve(__dirname, "..");
@@ -17,6 +17,7 @@ const rows = fs
   .trim()
   .split("\n")
   .filter(Boolean)
+  .filter((line) => !line.startsWith("node_cpu_percent,"))
   .map((line) => line.split(","));
 
 const column = (index) => rows.map((row) => Number(row[index]) || 0);

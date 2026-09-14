@@ -7,6 +7,7 @@ OUT_FILE="$1"
 PORT="${PORT:-3000}"
 
 : > "$OUT_FILE"
+echo "node_cpu_percent,node_memory_kb,pg_active_connections,pg_lock_waits,redis_cpu_percent,redis_memory,pending_acquires,avg_acquire_wait_seconds,p95_acquire_wait_seconds,peak_acquire_wait_seconds,avg_lock_wait_seconds,p95_lock_wait_seconds,peak_lock_wait_seconds" >> "$OUT_FILE"
 
 while true; do
   NODE_PID=$(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null | head -n1)
