@@ -13,7 +13,7 @@ import { StockReservationStatus } from "../product/dto/reserve-stock";
 import { ProductRepository } from "../product/repository";
 import { productService, ProductService } from "../product/service";
 import { getPublishChannel } from "../rabbitmq";
-import { assertPurchaseQueue, PURCHASE_QUEUE } from "../rabbitmq/queues";
+import { PURCHASE_QUEUE } from "../rabbitmq/queues";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
 import { PurchaseAcceptanceStatus } from "./dto/purchase-acceptance";
@@ -46,7 +46,6 @@ export class PurchaseService {
     const transaction =
       await this.transactionRepository.createPendingTransaction(input);
     const channel = this.getChannel();
-    await assertPurchaseQueue(channel);
     const queuedPurchase: QueuedPurchase = {
       transactionId: transaction.id,
       input,
