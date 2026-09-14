@@ -1,5 +1,5 @@
 import type { Knex } from "knex";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
 import { OutOfStockError } from "../errors/out-of-stock";
@@ -15,15 +15,19 @@ const input: PurchaseProductInput = {
   idempotencyKey: "idempotency-1",
 };
 
+afterEach(() => vi.restoreAllMocks());
+
 const createService = (): {
   service: PurchaseService;
   transaction: ReturnType<typeof vi.fn>;
+  releaseStockByProductId: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
   markStockReservationAsCompleted: ReturnType<typeof vi.fn>;
   deleteProductDetailsCache: ReturnType<typeof vi.fn>;
   findActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
 } => {
   const transaction = vi.fn();
+  const releaseStockByProductId = vi.fn();
   const reserveStockByProductId = vi.fn();
   const markStockReservationAsCompleted = vi.fn();
   const deleteProductDetailsCache = vi.fn();
@@ -33,7 +37,7 @@ const createService = (): {
     { transaction } as unknown as Knex,
     {
       reserveStockByProductId,
-      releaseStockByProductId: vi.fn(),
+      releaseStockByProductId,
       markStockReservationAsCompleted,
       deleteProductDetailsCache,
     } as unknown as ProductService,
@@ -45,6 +49,7 @@ const createService = (): {
   return {
     service,
     transaction,
+    releaseStockByProductId,
     reserveStockByProductId,
     markStockReservationAsCompleted,
     deleteProductDetailsCache,
@@ -143,5 +148,56 @@ describe("PurchaseService.purchaseProduct", () => {
       ActiveFlashSaleNotFoundError,
     );
     expect(transaction).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("purchase transaction failure handling", () => {
+  const rollbackErrors = [
+    new OutOfStockError(input.productId),
+    ...["23505", "23514", "40P01", "40001"].map((code) =>
+      Object.assign(new Error(code), { code }),
+    ),
+  ];
+
+  it.each(rollbackErrors)("releases stock on confirmed rollback: %s", async (error) => {
+    const { service, transaction, reserveStockByProductId, releaseStockByProductId } = createService();
+    reserveStockByProductId.mockResolvedValue({ status: StockReservationStatus.RESERVED });
+    transaction.mockRejectedValue(error);
+
+    await expect(service.purchaseProduct(input)).rejects.toBe(error);
+    expect(releaseStockByProductId).toHaveBeenCalledWith(input);
+  });
+
+  it.each(["ECONNRESET", "08006", "57P01", undefined])(
+    "retains stock and logs reconciliation for an uncertain outcome: %s",
+    async (code) => {
+      const { service, transaction, reserveStockByProductId, releaseStockByProductId, markStockReservationAsCompleted } = createService();
+      const error = Object.assign(new Error("Connection lost"), { code });
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      reserveStockByProductId.mockResolvedValue({ status: StockReservationStatus.RESERVED });
+      transaction.mockRejectedValue(error);
+
+      await expect(service.purchaseProduct(input)).rejects.toBe(error);
+      expect(releaseStockByProductId).not.toHaveBeenCalled();
+      expect(markStockReservationAsCompleted).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledWith(
+        "Database transaction outcome is unknown. Need to reconcile inventory.",
+        { productId: input.productId, idempotencyKey: input.idempotencyKey, error },
+      );
+    },
+  );
+
+  it("preserves the original rollback error when releasing stock fails", async () => {
+    const { service, transaction, reserveStockByProductId, releaseStockByProductId } = createService();
+    const error = new OutOfStockError(input.productId);
+    const releaseError = new Error("Redis unavailable");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    reserveStockByProductId.mockResolvedValue({ status: StockReservationStatus.RESERVED });
+    transaction.mockRejectedValue(error);
+    releaseStockByProductId.mockRejectedValue(releaseError);
+
+    await expect(service.purchaseProduct(input)).rejects.toBe(error);
+    expect(log).toHaveBeenCalledWith("Failed to release rolled-back reservation", releaseError);
   });
 });

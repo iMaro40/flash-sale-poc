@@ -60,11 +60,30 @@ export class PurchaseService {
         },
       );
     } catch (error) {
-      await this.productService.releaseStockByProductId({
-        productId: input.productId,
-        userId: input.userId,
-        idempotencyKey: input.idempotencyKey,
-      });
+      // Only explicit rollback errors prove that returning the reservation is safe.
+      // A lost COMMIT acknowledgement can mean the transaction actually succeeded.
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String(error.code)
+          : "";
+      const rolledBack =
+        error instanceof OutOfStockError ||
+        code.startsWith("23") ||
+        code === "40P01" ||
+        code === "40001";
+
+      if (rolledBack) {
+        try {
+          await this.productService.releaseStockByProductId(input);
+        } catch (releaseError) {
+          console.error("Failed to release rolled-back reservation", releaseError);
+        }
+      } else {
+        console.error(
+          "Database transaction outcome is unknown. Need to reconcile inventory.",
+          { productId: input.productId, idempotencyKey: input.idempotencyKey, error },
+        );
+      }
       throw error;
     }
 

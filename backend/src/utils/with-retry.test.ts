@@ -18,7 +18,9 @@ describe("withRetry", () => {
   });
 
   it("retries on transient failure and succeeds on subsequent attempt", async () => {
-    const transientError = new Error("Connection reset");
+    const transientError = Object.assign(new Error("Connection reset"), {
+      code: "ECONNRESET",
+    });
     const operation = vi
       .fn()
       .mockRejectedValueOnce(transientError)
