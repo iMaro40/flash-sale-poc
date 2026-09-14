@@ -33,7 +33,12 @@ MONITOR_CSV="stress-tests/.monitor-samples.csv"
 MONITOR_PID=$!
 trap 'kill "$MONITOR_PID" 2>/dev/null || true' EXIT
 
+# Thresholds in the k6 script make this exit non-zero on invariant violations, so don't let
+# `set -e` abort the script here — we still want the integrity check and report to run.
+set +e
 K6_OUTPUT=$(k6 run "stress-tests/${PROFILE}.js" "$@" 2>&1 | tee /dev/stderr)
+K6_EXIT_CODE=$?
+set -e
 
 kill "$MONITOR_PID" 2>/dev/null || true
 trap - EXIT
@@ -53,13 +58,17 @@ REDIS_MISSES=$(( REDIS_MISSES_AFTER - REDIS_MISSES_BEFORE ))
 
 PRODUCT_ID=$(echo "$K6_OUTPUT" | grep -oE 'PRODUCT_ID=\S+' | cut -d= -f2 | tr -d '"')
 USERS_ATTEMPTED=$(echo "$K6_OUTPUT" | grep -oE 'USERS_ATTEMPTED=\S+' | cut -d= -f2 | tr -d '"')
+INITIAL_STOCK=$(echo "$K6_OUTPUT" | grep -oE 'INITIAL_STOCK=\S+' | cut -d= -f2 | tr -d '"')
 
 if [ -z "$PRODUCT_ID" ]; then
   echo "Could not determine product ID from k6 output; skipping integrity check."
   exit 1
 fi
 
-(cd backend && npx tsx scripts/integrity-check.ts "$PRODUCT_ID" "$USERS_ATTEMPTED")
+set +e
+(cd backend && npx tsx scripts/integrity-check.ts "$PRODUCT_ID" "$USERS_ATTEMPTED" "$INITIAL_STOCK")
+INTEGRITY_EXIT_CODE=$?
+set -e
 
 # Postgres side: how many rows the purchase path actually wrote, and whether any are duplicates/stuck pending.
 PG_STATUS_COUNTS=$(docker exec flash-sale-postgres psql -U postgres -d flash_sale -t -A \
@@ -88,3 +97,19 @@ cat > stress-tests/.last-verification.json <<EOF
 EOF
 
 node stress-tests/report.js "$PROFILE"
+
+EXIT_CODE=0
+if [ "$K6_EXIT_CODE" -ne 0 ]; then
+  echo "k6 thresholds failed (exit code $K6_EXIT_CODE)" >&2
+  EXIT_CODE=$K6_EXIT_CODE
+fi
+if [ "$INTEGRITY_EXIT_CODE" -ne 0 ]; then
+  echo "Integrity check failed (exit code $INTEGRITY_EXIT_CODE)" >&2
+  EXIT_CODE=$INTEGRITY_EXIT_CODE
+fi
+if [ "${PG_DUPLICATE_BUYERS:-0}" -gt 0 ]; then
+  echo "Integrity check failed: $PG_DUPLICATE_BUYERS user(s) have more than one transaction row for product $PRODUCT_ID" >&2
+  EXIT_CODE=1
+fi
+
+exit "$EXIT_CODE"

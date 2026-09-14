@@ -10,6 +10,7 @@ export function createPurchaseLoadTest(config) {
     initialStock,
     stages,
     doublePurchaseRate = 0.02,
+    differentKeySameUserRate = 0.02,
     productNamePrefix = "k6-stress-product",
   } = config;
 
@@ -22,9 +23,16 @@ export function createPurchaseLoadTest(config) {
   // purchase — tracked client-side because rejected attempts (e.g. out of stock) never reach the DB.
   const usersAttempted = new Counter("users_attempted");
   const doublePurchaseAttempts = new Counter("double_purchase_attempts");
-  // Bug indicator: both concurrent requests for the same user+idempotencyKey were treated as successful.
+  // Both succeeding here is correct: it's a retry with the same idempotency key, not a double
+  // purchase. Informational only, not a bug indicator.
   const doublePurchaseBothSucceeded = new Counter(
     "double_purchase_both_succeeded",
+  );
+  const differentKeyRaceAttempts = new Counter("different_key_race_attempts");
+  // Real bug indicator: the same user completed two distinct purchases (different idempotency
+  // keys fired concurrently), which the one-purchase-per-user invariant should prevent.
+  const sameUserRaceBothSucceeded = new Counter(
+    "same_user_race_both_succeeded",
   );
   // Records seconds-since-test-start for every genuine out-of-stock 409; the metric's min is
   // effectively "when stock started running out".
@@ -63,6 +71,12 @@ export function createPurchaseLoadTest(config) {
     },
     // p(99) isn't tracked by default; needed for the combined load-test report.
     summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
+    // Makes k6 exit non-zero when a core invariant is violated, instead of only printing numbers.
+    thresholds: {
+      checks: ["rate>0.999"], // no unexpected 5xx responses
+      purchases_other_errors: ["count<1"],
+      same_user_race_both_succeeded: ["count==0"], // one purchase per user, no exceptions
+    },
   };
 
   // setup() runs once before load starts, outside of VU iterations.
@@ -149,6 +163,52 @@ export function createPurchaseLoadTest(config) {
       return;
     }
 
+    if (Math.random() < differentKeySameUserRate) {
+      // Same user, two distinct idempotency keys, fired at once — unlike the same-key retry above,
+      // both succeeding here would be a genuine double purchase.
+      const bodyA = JSON.stringify({
+        productId: data.productId,
+        userId,
+        idempotencyKey: `${idempotencyKey}-a`,
+      });
+      const bodyB = JSON.stringify({
+        productId: data.productId,
+        userId,
+        idempotencyKey: `${idempotencyKey}-b`,
+      });
+
+      const responses = http.batch([
+        ["POST", `${baseUrl}/purchases`, bodyA, params],
+        ["POST", `${baseUrl}/purchases`, bodyB, params],
+      ]);
+
+      differentKeyRaceAttempts.add(1);
+      usersAttempted.add(1);
+
+      const [first, second] = responses;
+      if (first.status === 201) recordSucceededCompletion(data);
+      if (second.status === 201) recordSucceededCompletion(data);
+
+      if (first.status === 201) purchased.add(1);
+      else if (first.status === 409) outOfStock.add(1);
+      else if (first.status === 429) rateLimited.add(1);
+      else otherErrors.add(1);
+
+      if (second.status === 201) purchased.add(1);
+      else if (second.status === 409) outOfStock.add(1);
+      else if (second.status === 429) rateLimited.add(1);
+      else otherErrors.add(1);
+
+      // The real double-purchase signal: two distinct requests from the same user both went through.
+      if (first.status === 201 && second.status === 201) {
+        sameUserRaceBothSucceeded.add(1);
+      }
+
+      check(first, { "status is not 5xx": (r) => r.status < 500 });
+      check(second, { "status is not 5xx": (r) => r.status < 500 });
+      return;
+    }
+
     const res = http.post(`${baseUrl}/purchases`, body, params);
 
     usersAttempted.add(1);
@@ -179,6 +239,8 @@ export function createPurchaseLoadTest(config) {
     console.log(`FINAL_STOCK=${product.stock}`);
     // Printed so the run.sh wrapper can pass this product into the DB integrity check.
     console.log(`PRODUCT_ID=${data.productId}`);
+    // Printed so the DB integrity check can assert stock conservation against the real starting value.
+    console.log(`INITIAL_STOCK=${initialStock}`);
   }
 
   // Overriding handleSummary replaces k6's noisy default table with just what we care about.
@@ -198,6 +260,10 @@ export function createPurchaseLoadTest(config) {
     const doublePurchaseAttemptsCount = count("double_purchase_attempts");
     const doublePurchaseBothSucceededCount = count(
       "double_purchase_both_succeeded",
+    );
+    const differentKeyRaceAttemptsCount = count("different_key_race_attempts");
+    const sameUserRaceBothSucceededCount = count(
+      "same_user_race_both_succeeded",
     );
     const totalRequests = data.metrics.http_reqs?.values.count ?? 0;
     const maxVUs = data.metrics.vus_max?.values.max ?? 0;
@@ -236,8 +302,11 @@ export function createPurchaseLoadTest(config) {
       `Rate limited (429):  ${rateLimitedCount}  (${percent(rateLimitedCount)}%)`,
       `Other errors:        ${otherErrorCount}  (${percent(otherErrorCount)}%)`,
       "",
-      `Double-purchase attempts:      ${doublePurchaseAttemptsCount}`,
-      `Double-purchase BOTH succeeded (bug!): ${doublePurchaseBothSucceededCount}`,
+      `Idempotent-retry attempts (same key):      ${doublePurchaseAttemptsCount}`,
+      `Idempotent-retry BOTH succeeded (expected): ${doublePurchaseBothSucceededCount}`,
+      "",
+      `Different-key race attempts (same user):    ${differentKeyRaceAttemptsCount}`,
+      `Same-user race BOTH succeeded (bug!):        ${sameUserRaceBothSucceededCount}`,
       "",
       stockRanOutAtSeconds !== undefined
         ? `Stock started running out at: ${stockRanOutAtSeconds.toFixed(1)}s into the test`
