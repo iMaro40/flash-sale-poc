@@ -76,23 +76,34 @@ export class PurchaseService {
         try {
           await this.productService.releaseStockByProductId(input);
         } catch (releaseError) {
-          console.error("Failed to release rolled-back reservation", releaseError);
+          console.error(
+            "Failed to release rolled-back reservation",
+            releaseError,
+          );
         }
       } else {
         console.error(
           "Database transaction outcome is unknown. Need to reconcile inventory.",
-          { productId: input.productId, idempotencyKey: input.idempotencyKey, error },
+          {
+            productId: input.productId,
+            idempotencyKey: input.idempotencyKey,
+            error,
+          },
         );
       }
       throw error;
     }
 
-    await this.productService.markStockReservationAsCompleted({
-      productId: input.productId,
-      userId: input.userId,
-      idempotencyKey: input.idempotencyKey,
-    });
-    await this.productService.deleteProductDetailsCache(input.productId);
+    // We don't want Redis blocking the purchase flow at this point since it's already success, so just alert here
+    try {
+      await this.productService.markStockReservationAsCompleted({
+        productId: input.productId,
+        userId: input.userId,
+        idempotencyKey: input.idempotencyKey,
+      });
+    } catch (error) {
+      console.error("Failed to mark stock reservation as completed", error);
+    }
 
     // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
   }

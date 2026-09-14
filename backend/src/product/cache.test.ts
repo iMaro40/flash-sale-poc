@@ -29,41 +29,10 @@ describe("ProductCache", () => {
       hSet: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
       expire: vi.fn(),
       set: vi.fn(),
-      del: vi.fn(),
     };
     const cache = new ProductCache(redis as never);
 
     await expect(cache.setProduct(product)).rejects.toThrow(
-      "Redis unavailable",
-    );
-  });
-
-  it("deletes cached product details without deleting the stock counter", async () => {
-    const redis = {
-      hGetAll: vi.fn(),
-      hSet: vi.fn(),
-      expire: vi.fn(),
-      set: vi.fn(),
-      del: vi.fn().mockResolvedValue(2),
-    };
-    const cache = new ProductCache(redis as never);
-
-    await cache.deleteProductDetails(product.id);
-
-    expect(redis.del).toHaveBeenCalledWith(`product:${product.id}:details`);
-  });
-
-  it("throws when Redis del fails", async () => {
-    const redis = {
-      hGetAll: vi.fn(),
-      hSet: vi.fn(),
-      expire: vi.fn(),
-      set: vi.fn(),
-      del: vi.fn().mockRejectedValue(new Error("Redis unavailable")),
-    };
-    const cache = new ProductCache(redis as never);
-
-    await expect(cache.deleteProductDetails(product.id)).rejects.toThrow(
       "Redis unavailable",
     );
   });

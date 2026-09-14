@@ -53,10 +53,6 @@ export class ProductService {
     return product;
   }
 
-  public async deleteProductDetailsCache(productId: string): Promise<void> {
-    await this.productCache.deleteProductDetails(productId);
-  }
-
   public async reserveStockByProductId(
     input: ReserveStockInput,
   ): Promise<StockReservationResult> {

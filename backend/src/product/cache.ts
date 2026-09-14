@@ -45,10 +45,6 @@ export class ProductCache {
     );
   }
 
-  public async deleteProductDetails(productId: string): Promise<void> {
-    await this.redis.del(redisKeys.productDetails(productId));
-  }
-
   public async setStockByProductId(
     productId: string,
     stock: number,

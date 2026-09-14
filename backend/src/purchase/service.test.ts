@@ -23,14 +23,12 @@ const createService = (): {
   releaseStockByProductId: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
   markStockReservationAsCompleted: ReturnType<typeof vi.fn>;
-  deleteProductDetailsCache: ReturnType<typeof vi.fn>;
   findActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
 } => {
   const transaction = vi.fn();
   const releaseStockByProductId = vi.fn();
   const reserveStockByProductId = vi.fn();
   const markStockReservationAsCompleted = vi.fn();
-  const deleteProductDetailsCache = vi.fn();
   const findActiveFlashSaleByProductId = vi.fn();
 
   const service = new PurchaseService(
@@ -39,7 +37,6 @@ const createService = (): {
       reserveStockByProductId,
       releaseStockByProductId,
       markStockReservationAsCompleted,
-      deleteProductDetailsCache,
     } as unknown as ProductService,
     {
       findActiveFlashSaleByProductId,
@@ -52,7 +49,6 @@ const createService = (): {
     releaseStockByProductId,
     reserveStockByProductId,
     markStockReservationAsCompleted,
-    deleteProductDetailsCache,
     findActiveFlashSaleByProductId,
   };
 };
@@ -70,13 +66,12 @@ describe("PurchaseService.purchaseProduct", () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it("completes a cached reservation and clears product details after purchase", async () => {
+  it("completes a cached reservation after purchase", async () => {
     const {
       service,
       transaction,
       reserveStockByProductId,
       markStockReservationAsCompleted,
-      deleteProductDetailsCache,
     } = createService();
     transaction.mockResolvedValue(undefined);
     reserveStockByProductId.mockResolvedValue({
@@ -88,7 +83,6 @@ describe("PurchaseService.purchaseProduct", () => {
 
     expect(transaction).toHaveBeenCalledOnce();
     expect(markStockReservationAsCompleted).toHaveBeenCalledWith(input);
-    expect(deleteProductDetailsCache).toHaveBeenCalledWith(input.productId);
   });
 
   it("returns idempotent success without calling Postgres", async () => {

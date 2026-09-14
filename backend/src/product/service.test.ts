@@ -26,7 +26,6 @@ const createProductCache = (): {
   getStockByProductId: ReturnType<typeof vi.fn>;
   setProduct: ReturnType<typeof vi.fn>;
   setStockByProductId: ReturnType<typeof vi.fn>;
-  deleteProductDetails: ReturnType<typeof vi.fn>;
   reserveStockByProductId: ReturnType<typeof vi.fn>;
   markStockReservationAsCompleted: ReturnType<typeof vi.fn>;
   releaseStockByProductId: ReturnType<typeof vi.fn>;
@@ -35,7 +34,6 @@ const createProductCache = (): {
   getStockByProductId: vi.fn(),
   setProduct: vi.fn(),
   setStockByProductId: vi.fn(),
-  deleteProductDetails: vi.fn(),
   reserveStockByProductId: vi.fn(),
   markStockReservationAsCompleted: vi.fn(),
   releaseStockByProductId: vi.fn(),
@@ -142,21 +140,6 @@ describe("ProductService.createProduct", () => {
     expect(result).toEqual(product);
     expect(productRepository.create).toHaveBeenCalledWith(input);
     expect(productCache.setProduct).toHaveBeenCalledWith(product);
-  });
-});
-
-describe("ProductService.deleteProductDetailsCache", () => {
-  it("delegates deleting cached product details to ProductCache", async () => {
-    const productRepository = createProductRepository();
-    const productCache = createProductCache();
-    const service = new ProductService(
-      productRepository as unknown as ProductRepository,
-      productCache as unknown as ProductCache,
-    );
-
-    await service.deleteProductDetailsCache(product.id);
-
-    expect(productCache.deleteProductDetails).toHaveBeenCalledWith(product.id);
   });
 });
 
