@@ -30,3 +30,18 @@ input:focus-visible, button:focus-visible { outline: 3px solid #6ac5b6; outline-
 .error { color: #b42318; }
 .hint { font-size: 0.85rem; }
 @media (max-width: 850px) { .forms { grid-template-columns: 1fr; } main { padding: 32px 20px; } }
+.sales-section { margin-top: 32px; padding: 24px; background: white; border: 1px solid #dce4e9; border-radius: 16px; }
+.sales-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sales-heading h2 { margin-top: 0; }
+.sales-heading p { font-size: 0.85rem; overflow-wrap: anywhere; }
+.sales-heading button { width: auto; flex-shrink: 0; }
+.table-scroll { overflow-x: auto; margin-top: 20px; }
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+caption { text-align: left; color: #536574; padding-bottom: 12px; }
+th, td { padding: 14px 12px; border-bottom: 1px solid #e2e8ec; }
+th { background: #f3f6f8; white-space: nowrap; }
+td { overflow-wrap: anywhere; }
+.empty-sales { text-align: center; color: #536574; padding: 28px 12px; }
+.sale-status { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 4px 8px; border-radius: 6px; background: #edf0f3; }
+.sale-status.active { color: #09675e; background: #e6f3ef; }
+.sale-status.upcoming { color: #2458a0; background: #eaf1fc; }

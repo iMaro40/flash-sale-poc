@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import FlashSalesTable from './FlashSalesTable'
 
 type Result = { pending: boolean; message: string; error: boolean }
 const initialResult: Result = { pending: false, message: '', error: false }
@@ -35,6 +36,8 @@ function App() {
   const [productResult, setProductResult] = useState(initialResult)
   const [saleResult, setSaleResult] = useState(initialResult)
   const [purchaseResult, setPurchaseResult] = useState(initialResult)
+  const [createdProductId, setCreatedProductId] = useState('')
+  const [salesRevision, setSalesRevision] = useState(0)
 
   async function submit(
     event: FormEvent<HTMLFormElement>,
@@ -59,25 +62,33 @@ function App() {
         <p>Start with a product, create its sale, then try a purchase. Default values are ready to edit.</p>
       </header>
       <div className="forms">
-        <form onSubmit={(event) => void submit(event, setProductResult, async () => {
+        <form onSubmit={(event) => {
+          if (createdProductId || productResult.pending) {
+            event.preventDefault()
+            return
+          }
+          void submit(event, setProductResult, async () => {
           const product = await post('/products', { name: name.trim(), stock: Number(stock) })
+          setCreatedProductId(product.id)
           setSaleProductId(product.id)
           setPurchaseProductId(product.id)
           setIdempotencyKey(crypto.randomUUID())
           return `Product created: ${product.id}. Product IDs below have been filled in.`
-        })}>
+          })
+        }}>
           <span className="step">01</span>
           <h2>Create Product</h2>
-          <p className="description">Add a product and its available stock.</p>
-          <label>Product name<input required value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label>Stock<input required type="number" min="0" step="1" value={stock} onChange={(e) => setStock(e.target.value)} /></label>
-          <button disabled={productResult.pending}>{productResult.pending ? 'Creating…' : 'Create Product'}</button>
+          <p className="description">{createdProductId ? 'This demo supports one product. Use the created product for your sales and purchases.' : 'Add a product and its available stock. This demo supports one product.'}</p>
+          <label>Product name<input required disabled={Boolean(createdProductId) || productResult.pending} value={name} onChange={(e) => setName(e.target.value)} /></label>
+          <label>Stock<input required disabled={Boolean(createdProductId) || productResult.pending} type="number" min="0" step="1" value={stock} onChange={(e) => setStock(e.target.value)} /></label>
+          <button disabled={Boolean(createdProductId) || productResult.pending}>{productResult.pending ? 'Creating…' : createdProductId ? 'Product Created' : 'Create Product'}</button>
           <Feedback result={productResult} />
         </form>
         <form onSubmit={(event) => void submit(event, setSaleResult, async () => {
           if (new Date(endTime) <= new Date(startTime)) throw new Error('End time must be after start time.')
           if (new Date(endTime) <= new Date()) throw new Error('End time must be in the future.')
           const sale = await post('/flash-sales', { productId: saleProductId.trim(), startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString() })
+          setSalesRevision((revision) => revision + 1)
           return `Flash sale created: ${sale.flashSaleId}`
         })}>
           <span className="step">02</span>
@@ -103,6 +114,7 @@ function App() {
         </form>
       </div>
       <p className="hint">Create a product first to replace the sample product IDs automatically.</p>
+      <FlashSalesTable key={createdProductId} productId={createdProductId} revision={salesRevision} />
     </main>
   )
 }

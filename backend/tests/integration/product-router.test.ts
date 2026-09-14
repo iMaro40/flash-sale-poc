@@ -35,13 +35,24 @@ describe("public routes", () => {
       stock: 10,
     };
 
-    const firstCreateResponse = await request(app)
-      .post("/products")
-      .send(firstProductInput)
-      .expect(201);
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () => request(app).post("/products").send(firstProductInput)),
+    );
+    const successfulResponses = responses.filter((response) => response.status === 201);
+    for (const response of successfulResponses) {
+      createdProductIds.push((response.body as ProductResponse).id);
+    }
+    expect(successfulResponses).toHaveLength(1);
+    const rejectedResponses = responses.filter((response) => response.status === 409);
+    expect(rejectedResponses).toHaveLength(4);
+    for (const response of rejectedResponses) {
+      expect(response.body.message).toContain("Only one product is allowed");
+    }
+    const firstCreateResponse = successfulResponses[0];
 
     const firstProduct = firstCreateResponse.body as ProductResponse;
-    createdProductIds.push(firstProduct.id);
+
+    await request(app).post("/products").send(firstProductInput).expect(409);
 
     const getResponse = await request(app)
       .get(`/products/${firstProduct.id}`)
