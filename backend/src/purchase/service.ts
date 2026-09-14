@@ -17,6 +17,7 @@ import { assertPurchaseQueue, PURCHASE_QUEUE } from "../rabbitmq/queues";
 import { TransactionStatus } from "../transactions/model";
 import { TransactionRepository } from "../transactions/repository";
 import { PurchaseAcceptanceStatus } from "./dto/purchase-acceptance";
+import type { QueuedPurchase } from "./dto/queued-purchase";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 
 export class PurchaseService {
@@ -25,6 +26,9 @@ export class PurchaseService {
     private readonly productService: ProductService,
     private readonly flashSaleService: FlashSaleService,
     private readonly getChannel: () => Channel = getPublishChannel,
+    private readonly transactionRepository: TransactionRepository = new TransactionRepository(
+      db,
+    ),
   ) {}
 
   // Reserves stock synchronously (fast, Redis-only), then hands the actual DB
@@ -39,18 +43,29 @@ export class PurchaseService {
       return PurchaseAcceptanceStatus.ALREADY_COMPLETED;
     }
 
+    const transaction =
+      await this.transactionRepository.createPendingTransaction(input);
     const channel = this.getChannel();
     await assertPurchaseQueue(channel);
-    channel.sendToQueue(PURCHASE_QUEUE, Buffer.from(JSON.stringify(input)), {
-      persistent: true,
-    });
+    const queuedPurchase: QueuedPurchase = {
+      transactionId: transaction.id,
+      input,
+    };
+    channel.sendToQueue(
+      PURCHASE_QUEUE,
+      Buffer.from(JSON.stringify(queuedPurchase)),
+      { persistent: true },
+    );
 
     return PurchaseAcceptanceStatus.ACCEPTED;
   }
 
   // Performs the actual DB write for a reserved purchase. Called by the purchase worker
   // after consuming the message published in purchaseProduct().
-  public async completePurchase(input: PurchaseProductInput): Promise<void> {
+  public async completePurchase(
+    input: PurchaseProductInput,
+    transactionId: string,
+  ): Promise<void> {
     try {
       await this.db.transaction(
         async (trx: Knex.Transaction): Promise<void> => {
@@ -60,12 +75,19 @@ export class PurchaseService {
             trx,
           );
 
-          const transaction =
-            await transactionRepository.createPendingTransaction({
-              idempotencyKey: input.idempotencyKey,
-              productId: input.productId,
-              userId: input.userId,
-            });
+          const transaction = await transactionRepository.getTransactionById(
+            transactionId,
+            true,
+          );
+          if (!transaction) {
+            throw new Error(`Transaction not found: ${transactionId}`);
+          }
+          if (transaction.status === TransactionStatus.COMPLETED) {
+            return;
+          }
+          if (transaction.status === TransactionStatus.CANCELLED) {
+            throw new Error(`Transaction already cancelled: ${transactionId}`);
+          }
 
           const updatedRows = await productRepository.decrementStockByProductId(
             input.productId,
@@ -76,7 +98,7 @@ export class PurchaseService {
           }
 
           await transactionRepository.updateTransactionStatusById(
-            transaction.id,
+            transactionId,
             TransactionStatus.COMPLETED,
           );
         },
@@ -128,6 +150,17 @@ export class PurchaseService {
     }
 
     // OUT OF SCOPE: Publish to queue for post-purchase asynchronous side effects e.g. notifications, email, analytics, etc.
+  }
+
+  public async cancelPurchase(
+    transactionId: string,
+    input: PurchaseProductInput,
+  ): Promise<void> {
+    await this.transactionRepository.updateTransactionStatusById(
+      transactionId,
+      TransactionStatus.CANCELLED,
+    );
+    await this.productService.releaseStockByProductId(input);
   }
 
   private async reserveStock(input: PurchaseProductInput): Promise<boolean> {

@@ -7,6 +7,7 @@ import { OutOfStockError } from "../errors/out-of-stock";
 import type { FlashSaleService } from "../flash-sale/service";
 import { StockReservationStatus } from "../product/dto/reserve-stock";
 import type { ProductService } from "../product/service";
+import type { TransactionRepository } from "../transactions/repository";
 import { PurchaseAcceptanceStatus } from "./dto/purchase-acceptance";
 import type { PurchaseProductInput } from "./dto/purchase-product";
 import { PurchaseService } from "./service";
@@ -27,6 +28,7 @@ const createService = (): {
   markStockReservationAsCompleted: ReturnType<typeof vi.fn>;
   findActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
   sendToQueue: ReturnType<typeof vi.fn>;
+  createPendingTransaction: ReturnType<typeof vi.fn>;
 } => {
   const transaction = vi.fn();
   const releaseStockByProductId = vi.fn();
@@ -34,8 +36,18 @@ const createService = (): {
   const markStockReservationAsCompleted = vi.fn();
   const findActiveFlashSaleByProductId = vi.fn();
   const sendToQueue = vi.fn();
+  const createPendingTransaction = vi.fn().mockResolvedValue({
+    id: "transaction-1",
+  });
   const assertQueue = vi.fn().mockResolvedValue(undefined);
-  const channel = { sendToQueue, assertQueue } as unknown as Channel;
+  const assertExchange = vi.fn().mockResolvedValue(undefined);
+  const bindQueue = vi.fn().mockResolvedValue(undefined);
+  const channel = {
+    sendToQueue,
+    assertQueue,
+    assertExchange,
+    bindQueue,
+  } as unknown as Channel;
 
   const service = new PurchaseService(
     { transaction } as unknown as Knex,
@@ -48,6 +60,7 @@ const createService = (): {
       findActiveFlashSaleByProductId,
     } as unknown as FlashSaleService,
     () => channel,
+    { createPendingTransaction } as unknown as TransactionRepository,
   );
 
   return {
@@ -58,6 +71,7 @@ const createService = (): {
     markStockReservationAsCompleted,
     findActiveFlashSaleByProductId,
     sendToQueue,
+    createPendingTransaction,
   };
 };
 
@@ -75,7 +89,12 @@ describe("PurchaseService.purchaseProduct", () => {
   });
 
   it("publishes a reserved purchase to the queue for async processing", async () => {
-    const { service, sendToQueue, reserveStockByProductId } = createService();
+    const {
+      service,
+      sendToQueue,
+      reserveStockByProductId,
+      createPendingTransaction,
+    } = createService();
     reserveStockByProductId.mockResolvedValue({
       status: StockReservationStatus.RESERVED,
       remainingStock: 9,
@@ -86,9 +105,10 @@ describe("PurchaseService.purchaseProduct", () => {
     );
     expect(sendToQueue).toHaveBeenCalledWith(
       expect.any(String),
-      Buffer.from(JSON.stringify(input)),
+      Buffer.from(JSON.stringify({ transactionId: "transaction-1", input })),
       { persistent: true },
     );
+    expect(createPendingTransaction).toHaveBeenCalledWith(input);
   });
 
   it("returns idempotent success without publishing to the queue", async () => {
@@ -159,7 +179,9 @@ describe("PurchaseService.completePurchase", () => {
       createService();
     transaction.mockResolvedValue(undefined);
 
-    await expect(service.completePurchase(input)).resolves.toBeUndefined();
+    await expect(
+      service.completePurchase(input, "transaction-1"),
+    ).resolves.toBeUndefined();
 
     expect(transaction).toHaveBeenCalledOnce();
     expect(markStockReservationAsCompleted).toHaveBeenCalledWith(input);
@@ -178,7 +200,9 @@ describe("PurchaseService.completePurchase", () => {
       const { service, transaction, releaseStockByProductId } = createService();
       transaction.mockRejectedValue(error);
 
-      await expect(service.completePurchase(input)).rejects.toBe(error);
+      await expect(
+        service.completePurchase(input, "transaction-1"),
+      ).rejects.toBe(error);
       expect(releaseStockByProductId).toHaveBeenCalledWith(input);
     },
   );
@@ -196,7 +220,9 @@ describe("PurchaseService.completePurchase", () => {
       const log = vi.spyOn(console, "error").mockImplementation(() => {});
       transaction.mockRejectedValue(error);
 
-      await expect(service.completePurchase(input)).rejects.toBe(error);
+      await expect(
+        service.completePurchase(input, "transaction-1"),
+      ).rejects.toBe(error);
       expect(releaseStockByProductId).not.toHaveBeenCalled();
       expect(markStockReservationAsCompleted).not.toHaveBeenCalled();
       expect(log).toHaveBeenCalledWith(
@@ -218,7 +244,9 @@ describe("PurchaseService.completePurchase", () => {
     transaction.mockRejectedValue(error);
     releaseStockByProductId.mockRejectedValue(releaseError);
 
-    await expect(service.completePurchase(input)).rejects.toBe(error);
+    await expect(service.completePurchase(input, "transaction-1")).rejects.toBe(
+      error,
+    );
     expect(log).toHaveBeenCalledWith(
       "Failed to release rolled-back reservation",
       releaseError,

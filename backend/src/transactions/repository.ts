@@ -61,6 +61,16 @@ export class TransactionRepository {
     return transaction ? this.mapToTransaction(transaction) : undefined;
   }
 
+  public async getTransactionById(
+    id: string,
+    lock = false,
+  ): Promise<Transaction | undefined> {
+    const query = this.db<TransactionDbRow>("transactions").where("id", id);
+    const transaction = await (lock ? query.forUpdate() : query).first();
+
+    return transaction ? this.mapToTransaction(transaction) : undefined;
+  }
+
   public async createPendingTransaction(
     input: CreatePendingTransactionInput,
   ): Promise<Transaction> {

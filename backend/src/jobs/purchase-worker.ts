@@ -6,7 +6,7 @@ import { closeDatabase } from "../database";
 import { closeRedis, connectRedis } from "../redis";
 import { connectRabbitMQ, createConsumerChannel } from "../rabbitmq";
 import { assertPurchaseQueue, PURCHASE_QUEUE } from "../rabbitmq/queues";
-import type { PurchaseProductInput } from "../purchase/dto/purchase-product";
+import type { QueuedPurchase } from "../purchase/dto/queued-purchase";
 import { purchaseService } from "../purchase/service";
 
 // Caps how many purchase DB writes can run at the same time, regardless of how
@@ -38,16 +38,31 @@ const startWorker = async (): Promise<void> => {
 
       void (async (): Promise<void> => {
         try {
-          const input = JSON.parse(
+          const queuedPurchase = JSON.parse(
             message.content.toString(),
-          ) as PurchaseProductInput;
+          ) as QueuedPurchase;
 
-          await purchaseService.completePurchase(input);
+          await purchaseService.completePurchase(
+            queuedPurchase.input,
+            queuedPurchase.transactionId,
+          );
           channel.ack(message);
         } catch (error) {
           console.error("[purchase-worker] Failed to process purchase", error);
-          // Reservation errors (out of stock, etc.) are already handled/logged by completePurchase,
-          // which also releases the Redis reservation. Retrying won't help here, so don't requeue.
+          try {
+            const queuedPurchase = JSON.parse(
+              message.content.toString(),
+            ) as QueuedPurchase;
+            await purchaseService.cancelPurchase(
+              queuedPurchase.transactionId,
+              queuedPurchase.input,
+            );
+          } catch (cancellationError) {
+            console.error(
+              "[purchase-worker] Failed to cancel purchase",
+              cancellationError,
+            );
+          }
           channel.nack(message, false, false);
         }
       })();
