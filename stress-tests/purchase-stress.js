@@ -14,6 +14,13 @@ const otherErrors = new Counter("purchases_other_errors");
 // Every iteration uses a brand-new userId, so this counts unique users that attempted a
 // purchase — tracked client-side because rejected attempts (e.g. out of stock) never reach the DB.
 const usersAttempted = new Counter("users_attempted");
+// Fraction of iterations that fire the same user's purchase twice at once, to race the reservation/transaction logic.
+const DOUBLE_PURCHASE_RATE = Number(__ENV.DOUBLE_PURCHASE_RATE || 0.02);
+const doublePurchaseAttempts = new Counter("double_purchase_attempts");
+// Bug indicator: both concurrent requests for the same user+idempotencyKey were treated as successful.
+const doublePurchaseBothSucceeded = new Counter(
+  "double_purchase_both_succeeded",
+);
 
 export const options = {
   scenarios: {
@@ -70,16 +77,47 @@ export function setup() {
 
 export default function (data) {
   const uniqueSuffix = `${__VU}-${__ITER}-${Date.now()}`;
+  const userId = `user-${uniqueSuffix}`;
+  const idempotencyKey = `idem-${uniqueSuffix}`;
+  const body = JSON.stringify({
+    productId: data.productId,
+    userId,
+    idempotencyKey,
+  });
+  const params = { headers: { "Content-Type": "application/json" } };
 
-  const res = http.post(
-    `${BASE_URL}/purchases`,
-    JSON.stringify({
-      productId: data.productId,
-      userId: `user-${uniqueSuffix}`,
-      idempotencyKey: `idem-${uniqueSuffix}`,
-    }),
-    { headers: { "Content-Type": "application/json" } },
-  );
+  if (Math.random() < DOUBLE_PURCHASE_RATE) {
+    // Same user, same idempotencyKey, fired at once — targets the reservation/transaction race window.
+    const responses = http.batch([
+      ["POST", `${BASE_URL}/purchases`, body, params],
+      ["POST", `${BASE_URL}/purchases`, body, params],
+    ]);
+
+    doublePurchaseAttempts.add(1);
+    usersAttempted.add(1);
+
+    const [first, second] = responses;
+
+    if (first.status === 201) purchased.add(1);
+    else if (first.status === 409) outOfStock.add(1);
+    else if (first.status === 429) rateLimited.add(1);
+    else otherErrors.add(1);
+
+    if (second.status === 201) purchased.add(1);
+    else if (second.status === 409) outOfStock.add(1);
+    else if (second.status === 429) rateLimited.add(1);
+    else otherErrors.add(1);
+
+    if (first.status === 201 && second.status === 201) {
+      doublePurchaseBothSucceeded.add(1);
+    }
+
+    check(first, { "status is not 5xx": (r) => r.status < 500 });
+    check(second, { "status is not 5xx": (r) => r.status < 500 });
+    return;
+  }
+
+  const res = http.post(`${BASE_URL}/purchases`, body, params);
 
   usersAttempted.add(1);
 
@@ -121,6 +159,10 @@ export function handleSummary(data) {
   const rateLimitedCount = count("purchases_rate_limited");
   const otherErrorCount = count("purchases_other_errors");
   const usersAttemptedCount = count("users_attempted");
+  const doublePurchaseAttemptsCount = count("double_purchase_attempts");
+  const doublePurchaseBothSucceededCount = count(
+    "double_purchase_both_succeeded",
+  );
   const totalRequests = data.metrics.http_reqs?.values.count ?? 0;
   const maxVUs = data.metrics.vus_max?.values.max ?? 0;
   const percent = (n) =>
@@ -137,6 +179,9 @@ export function handleSummary(data) {
     `Out of stock (409):  ${outOfStockCount}  (${percent(outOfStockCount)}%)`,
     `Rate limited (429):  ${rateLimitedCount}  (${percent(rateLimitedCount)}%)`,
     `Other errors:        ${otherErrorCount}  (${percent(otherErrorCount)}%)`,
+    "",
+    `Double-purchase attempts:      ${doublePurchaseAttemptsCount}`,
+    `Double-purchase BOTH succeeded (bug!): ${doublePurchaseBothSucceededCount}`,
     "",
     "Latency (s)",
     `  avg:  ${durationSeconds("avg")}`,
