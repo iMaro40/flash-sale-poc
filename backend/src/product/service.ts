@@ -62,14 +62,18 @@ export class ProductService {
   ): Promise<StockReservationResult> {
     let reservation = await this.productCache.reserveStockByProductId(input);
 
-    if (reservation.status === StockReservationStatus.PRODUCT_CACHE_MISSING) {
-      // Lazy pre-warming on cache miss
-      const product = await this.productRepository.findById(input.productId);
-      if (product) {
-        await this.productCache.setProduct(product);
-        reservation = await this.productCache.reserveStockByProductId(input);
-      }
+    if (reservation.status !== StockReservationStatus.PRODUCT_CACHE_MISSING) {
+      return reservation;
     }
+
+    // Cache stock data and try to reserve again once
+    const product = await this.productRepository.findById(input.productId);
+    if (!product) {
+      return reservation;
+    }
+
+    await this.productCache.setProduct(product);
+    reservation = await this.productCache.reserveStockByProductId(input);
 
     return reservation;
   }

@@ -3,10 +3,7 @@ export const redisKeys = {
 
   productStock: (productId: string): string => `product:{${productId}}:stock`,
 
-  flashSaleDetails: (productId: string): string => `flash-sale:${productId}`,
-
-  flashSaleWindow: (productId: string): string =>
-    `flash-sale:{${productId}}:window`,
+  flashSale: (productId: string): string => `flash-sale:{${productId}}`,
 
   productBuyer: (productId: string, userId: string): string =>
     `product:{${productId}}:buyer:${userId}`,

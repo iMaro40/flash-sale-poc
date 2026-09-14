@@ -74,7 +74,6 @@ export class FlashSaleService {
       cachedFlashSale.startTime <= now &&
       cachedFlashSale.endTime > now
     ) {
-      await this.flashSaleCache.setFlashSaleWindow(cachedFlashSale);
       return {
         ...cachedFlashSale,
         status: this.determineFlashSaleStatus(cachedFlashSale),
@@ -115,10 +114,9 @@ export class FlashSaleService {
       throw new FlashSaleOverlapError(input.productId);
     }
 
-    const flashSaleId =
-      await this.flashSaleRepository.createFlashSale(input);
+    const flashSaleId = await this.flashSaleRepository.createFlashSale(input);
 
-    await this.flashSaleCache.setFlashSaleWindow({
+    await this.flashSaleCache.setActiveFlashSale({
       id: flashSaleId,
       ...input,
       status: this.determineFlashSaleStatus({

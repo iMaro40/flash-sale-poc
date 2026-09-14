@@ -43,11 +43,9 @@ const createProductService = (): {
 const createFlashSaleCache = (): {
   getActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
   setActiveFlashSale: ReturnType<typeof vi.fn>;
-  setFlashSaleWindow: ReturnType<typeof vi.fn>;
 } => ({
   getActiveFlashSaleByProductId: vi.fn(),
   setActiveFlashSale: vi.fn(),
-  setFlashSaleWindow: vi.fn(),
 });
 
 const createService = (): {
@@ -145,7 +143,7 @@ describe("FlashSaleService.findActiveFlashSaleByProductId", () => {
       ...flashSale,
       status: FlashSaleStatus.ACTIVE,
     });
-    expect(cache.setFlashSaleWindow).toHaveBeenCalledWith(flashSale);
+    expect(cache.setActiveFlashSale).not.toHaveBeenCalled();
     expect(repository.findActiveFlashSaleByProductId).not.toHaveBeenCalled();
   });
 
@@ -221,7 +219,7 @@ describe("FlashSaleService.createFlashSale", () => {
 
     expect(result).toBe("flash-sale-1");
     expect(repository.createFlashSale).toHaveBeenCalledWith(input);
-    expect(cache.setFlashSaleWindow).toHaveBeenCalledWith({
+    expect(cache.setActiveFlashSale).toHaveBeenCalledWith({
       id: "flash-sale-1",
       ...input,
       status: FlashSaleStatus.UPCOMING,

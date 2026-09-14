@@ -81,10 +81,10 @@ export class PurchaseService {
   private async reserveStock(input: PurchaseProductInput): Promise<boolean> {
     let reservation = await this.productService.reserveStockByProductId(input);
 
-    // Cache the flash sale status then attempt to reserve again
     if (
       reservation.status === StockReservationStatus.FLASH_SALE_CACHE_MISSING
     ) {
+      // Cache flash sale data and try to reserve again
       const activeFlashSale =
         await this.flashSaleService.findActiveFlashSaleByProductId(
           input.productId,
@@ -115,6 +115,10 @@ export class PurchaseService {
       case StockReservationStatus.FLASH_SALE_CACHE_MISSING:
       case StockReservationStatus.SALE_INACTIVE:
         throw new ActiveFlashSaleNotFoundError(input.productId);
+      default:
+        throw new Error(
+          `Unhandled stock reservation status: ${reservation.status}`,
+        );
     }
   }
 }

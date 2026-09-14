@@ -9,43 +9,36 @@ export class FlashSaleCache {
   public async getActiveFlashSaleByProductId(
     productId: string,
   ): Promise<FlashSale | undefined> {
-    const cachedFlashSale = await this.redis.get(
-      redisKeys.flashSaleDetails(productId),
+    const cachedFlashSale = await this.redis.hGetAll(
+      redisKeys.flashSale(productId),
     );
 
-    if (!cachedFlashSale) {
+    if (Object.keys(cachedFlashSale).length === 0) {
       return undefined;
     }
 
-    const flashSale = JSON.parse(cachedFlashSale) as FlashSale;
-
     return {
-      ...flashSale,
-      startTime: new Date(flashSale.startTime),
-      endTime: new Date(flashSale.endTime),
+      id: cachedFlashSale.id,
+      productId: cachedFlashSale.productId,
+      startTime: new Date(Number(cachedFlashSale.startTime)),
+      endTime: new Date(Number(cachedFlashSale.endTime)),
+      status: cachedFlashSale.status as FlashSale["status"],
     };
   }
 
   public async setActiveFlashSale(flashSale: FlashSale): Promise<void> {
-    await Promise.all([
-      this.redis.set(
-        redisKeys.flashSaleDetails(flashSale.productId),
-        JSON.stringify(flashSale),
-        { EX: 300 },
-      ),
-      this.setFlashSaleWindow(flashSale),
-    ]);
-  }
+    const oneDayInSeconds = 24 * 60 * 60;
+    const flashSaleCacheExpiresAtSeconds =
+      Math.ceil(flashSale.endTime.getTime() / 1000) + oneDayInSeconds;
 
-  public async setFlashSaleWindow(flashSale: FlashSale): Promise<void> {
-    const windowKey = redisKeys.flashSaleWindow(flashSale.productId);
-    const expiresAtSeconds =
-      Math.ceil(flashSale.endTime.getTime() / 1000) + 24 * 60 * 60;
-
-    await this.redis.hSet(windowKey, {
+    const flashSaleKey = redisKeys.flashSale(flashSale.productId);
+    await this.redis.hSet(flashSaleKey, {
+      id: flashSale.id,
+      productId: flashSale.productId,
       startTime: flashSale.startTime.getTime().toString(),
       endTime: flashSale.endTime.getTime().toString(),
+      status: flashSale.status ?? "",
     });
-    await this.redis.expireAt(windowKey, expiresAtSeconds);
+    await this.redis.expireAt(flashSaleKey, flashSaleCacheExpiresAtSeconds);
   }
 }

@@ -142,7 +142,7 @@ export class ProductCache {
     // which allows the atomic Lua script to work after scaling beyond one node.
     const keys = [
       redisKeys.productStock(input.productId),
-      redisKeys.flashSaleWindow(input.productId),
+      redisKeys.flashSale(input.productId),
       redisKeys.productBuyer(input.productId, input.userId),
       redisKeys.productReservation(
         input.productId,
@@ -223,7 +223,7 @@ export class ProductCache {
           input.userId,
           input.idempotencyKey,
         ),
-        redisKeys.flashSaleWindow(input.productId),
+        redisKeys.flashSale(input.productId),
       ],
       arguments: [input.idempotencyKey],
     });
