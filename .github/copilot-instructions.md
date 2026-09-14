@@ -28,10 +28,3 @@
 13. Repository methods should return domain model types, not database row types. Keep snake_case database fields and row-to-domain mapping internal to the repository.
 
 14. Unit tests should cover both happy paths and negative paths for each public behavior.
-
-## Execution Mode
-
-- Apply code changes directly without extra confirmation prompts.
-- Implement requests end-to-end unless blocked.
-- Keep edits minimal and scoped to the request.
-- Do not run typecheck/build/test commands unless explicitly requested.

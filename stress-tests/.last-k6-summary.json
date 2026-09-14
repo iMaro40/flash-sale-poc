@@ -1,9 +1,9 @@
 {
-  "durationSeconds": "42.5",
-  "rps": "1391.3",
-  "avgLatencySeconds": "1.241",
-  "p95LatencySeconds": "3.478",
-  "p99LatencySeconds": "11.361",
+  "durationSeconds": "41.6",
+  "rps": "608.5",
+  "avgLatencySeconds": "2.778",
+  "p95LatencySeconds": "5.506",
+  "p99LatencySeconds": "5.668",
   "errorRatePercent": "0.00",
-  "stockRanOutAtSeconds": "31.1"
+  "stockRanOutAtSeconds": "n/a"
 }

@@ -9,8 +9,15 @@ const profile = process.argv[2] || "run";
 const root = path.resolve(__dirname, "..");
 const k6SummaryPath = path.join(root, "stress-tests/.last-k6-summary.json");
 const monitorCsvPath = path.join(root, "stress-tests/.monitor-samples.csv");
+const verificationPath = path.join(
+  root,
+  "stress-tests/.last-verification.json",
+);
 
 const k6Summary = JSON.parse(fs.readFileSync(k6SummaryPath, "utf8"));
+const verification = fs.existsSync(verificationPath)
+  ? JSON.parse(fs.readFileSync(verificationPath, "utf8"))
+  : undefined;
 
 const rows = fs
   .readFileSync(monitorCsvPath, "utf8")
@@ -63,3 +70,22 @@ console.log("REDIS");
 console.log(`CPU avg              ${avg(redisCpu).toFixed(0)}%`);
 console.log(`Memory               ${lastRedisMem}`);
 console.log("");
+
+if (verification) {
+  console.log("VERIFICATION (Redis vs Postgres)");
+  console.log(
+    `Redis reservation calls   ${verification.redisReservationCalls}  (EVAL/EVALSHA — every purchase attempt is gated here)`,
+  );
+  console.log(`Redis keyspace hits       ${verification.redisKeyspaceHits}`);
+  console.log(`Redis keyspace misses     ${verification.redisKeyspaceMisses}`);
+  console.log(
+    `Postgres tx COMPLETED     ${verification.postgresTransactionsCompleted}  (should be << reservation calls, == legit purchases)`,
+  );
+  console.log(
+    `Postgres tx PENDING       ${verification.postgresTransactionsPending}  (stuck rows; should be 0)`,
+  );
+  console.log(
+    `Postgres duplicate buyers ${verification.postgresDuplicateBuyers}  (users with >1 row for this product; should be 0)`,
+  );
+  console.log("");
+}
