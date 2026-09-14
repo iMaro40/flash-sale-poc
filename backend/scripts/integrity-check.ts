@@ -1,8 +1,15 @@
+import { appendFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { closeDatabase, database } from "../src/database";
 
 interface CountRow {
   count: string;
 }
+
+const MONITOR_CSV_PATH = resolve(
+  __dirname,
+  "../../stress-tests/.monitor-samples.csv",
+);
 
 const run = async (): Promise<void> => {
   const productId = process.argv[2];
@@ -48,6 +55,10 @@ const run = async (): Promise<void> => {
   console.log(`Unique users attempted:       ${usersAttempted}`);
   console.log(`Unique users completed:       ${uniqueUsersCompleted}`);
   console.log("");
+
+  // Appended as a trailing row so report.js can combine it with the monitor.sh samples.
+  const monitorRow = `,,,,,,,,,,,,,${product?.stock ?? ""},${totalTransactions},${completedTransactions},${usersAttempted},${uniqueUsersCompleted}\n`;
+  appendFileSync(MONITOR_CSV_PATH, monitorRow);
 };
 
 run()

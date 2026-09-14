@@ -12,13 +12,18 @@ const monitorCsvPath = path.join(root, "stress-tests/.monitor-samples.csv");
 
 const k6Summary = JSON.parse(fs.readFileSync(k6SummaryPath, "utf8"));
 
-const rows = fs
+const allRows = fs
   .readFileSync(monitorCsvPath, "utf8")
   .trim()
   .split("\n")
   .filter(Boolean)
   .filter((line) => !line.startsWith("node_cpu_percent,"))
   .map((line) => line.split(","));
+
+// integrity-check.ts appends one trailing row with only the final_stock..unique_users_completed
+// columns filled in; keep it out of the per-second sample aggregations below.
+const rows = allRows.filter((row) => row[0] !== "");
+const integrityRow = allRows.find((row) => row[0] === "");
 
 const column = (index) => rows.map((row) => Number(row[index]) || 0);
 const avg = (values) =>
@@ -86,3 +91,15 @@ console.log("REDIS");
 console.log(`CPU avg              ${avg(redisCpu).toFixed(0)}%`);
 console.log(`Memory               ${lastRedisMem}`);
 console.log("");
+
+if (integrityRow) {
+  const [, , , , , , , , , , , , , finalStock, transactionsTotal, transactionsCompleted, usersAttempted, uniqueUsersCompleted] =
+    integrityRow;
+  console.log("INTEGRITY");
+  console.log(`Final stock (DB)     ${finalStock}`);
+  console.log(`Transactions total   ${transactionsTotal}`);
+  console.log(`Transactions done    ${transactionsCompleted}`);
+  console.log(`Users attempted      ${usersAttempted}`);
+  console.log(`Users completed      ${uniqueUsersCompleted}`);
+  console.log("");
+}

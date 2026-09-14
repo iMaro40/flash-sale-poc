@@ -7,7 +7,9 @@ OUT_FILE="$1"
 PORT="${PORT:-3000}"
 
 : > "$OUT_FILE"
-echo "node_cpu_percent,node_memory_kb,pg_active_connections,pg_lock_waits,redis_cpu_percent,redis_memory,pending_acquires,avg_acquire_wait_seconds,p95_acquire_wait_seconds,peak_acquire_wait_seconds,avg_lock_wait_seconds,p95_lock_wait_seconds,peak_lock_wait_seconds" >> "$OUT_FILE"
+# Trailing final_stock/transactions_*/unique_users_* columns are left blank here and filled in
+# by integrity-check.ts once the stress test finishes.
+echo "node_cpu_percent,node_memory_kb,pg_active_connections,pg_lock_waits,redis_cpu_percent,redis_memory,pending_acquires,avg_acquire_wait_seconds,p95_acquire_wait_seconds,peak_acquire_wait_seconds,avg_lock_wait_seconds,p95_lock_wait_seconds,peak_lock_wait_seconds,final_stock,transactions_total,transactions_completed,unique_users_attempted,unique_users_completed" >> "$OUT_FILE"
 
 while true; do
   NODE_PID=$(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null | head -n1)
@@ -46,7 +48,7 @@ while true; do
   ' "$POOL_STATS_JSON" 2>/dev/null)
   POOL_FIELDS="${POOL_FIELDS:-0,0,0,0,0,0,0}"
 
-  echo "${NODE_STATS},${PG_ACTIVE:-0},${PG_LOCK_WAITS:-0},${REDIS_CPU:-0},${REDIS_MEM:-n/a},${POOL_FIELDS}" >> "$OUT_FILE"
+  echo "${NODE_STATS},${PG_ACTIVE:-0},${PG_LOCK_WAITS:-0},${REDIS_CPU:-0},${REDIS_MEM:-n/a},${POOL_FIELDS},,,,," >> "$OUT_FILE"
 
   sleep 1
 done
