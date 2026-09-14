@@ -226,8 +226,6 @@ export function createPurchaseLoadTest(config) {
 
     const lines = [
       "",
-      "Flash Sale Purchase Stress Test",
-      "================================",
       `Max VUs:            ${maxVUs}`,
       `Total requests:      ${totalRequests}`,
       "",

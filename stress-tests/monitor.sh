@@ -24,7 +24,25 @@ while true; do
   REDIS_CPU=$(echo "$REDIS_STATS" | cut -d, -f1 | tr -d '%')
   REDIS_MEM=$(echo "$REDIS_STATS" | cut -d, -f2 | cut -d/ -f1 | tr -d ' ')
 
-  echo "${NODE_STATS},${PG_ACTIVE:-0},${PG_LOCK_WAITS:-0},${REDIS_CPU:-0},${REDIS_MEM:-n/a}" >> "$OUT_FILE"
+  # Time spent waiting for a pool connection (not the same as PG_LOCK_WAITS above, which is time
+  # spent waiting on a row lock after a connection was already acquired).
+  POOL_STATS_JSON=$(curl -s "http://localhost:$PORT/internal/db-pool-stats" 2>/dev/null)
+  POOL_FIELDS=$(node -e '
+    try {
+      const stats = JSON.parse(process.argv[1]);
+      console.log([
+        stats.pendingAcquires ?? 0,
+        stats.avgAcquireSeconds ?? 0,
+        stats.p95AcquireSeconds ?? 0,
+        stats.maxAcquireSeconds ?? 0,
+      ].join(","));
+    } catch {
+      console.log("0,0,0,0");
+    }
+  ' "$POOL_STATS_JSON" 2>/dev/null)
+  POOL_FIELDS="${POOL_FIELDS:-0,0,0,0}"
+
+  echo "${NODE_STATS},${PG_ACTIVE:-0},${PG_LOCK_WAITS:-0},${REDIS_CPU:-0},${REDIS_MEM:-n/a},${POOL_FIELDS}" >> "$OUT_FILE"
 
   sleep 1
 done

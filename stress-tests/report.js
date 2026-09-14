@@ -9,15 +9,8 @@ const profile = process.argv[2] || "run";
 const root = path.resolve(__dirname, "..");
 const k6SummaryPath = path.join(root, "stress-tests/.last-k6-summary.json");
 const monitorCsvPath = path.join(root, "stress-tests/.monitor-samples.csv");
-const verificationPath = path.join(
-  root,
-  "stress-tests/.last-verification.json",
-);
 
 const k6Summary = JSON.parse(fs.readFileSync(k6SummaryPath, "utf8"));
-const verification = fs.existsSync(verificationPath)
-  ? JSON.parse(fs.readFileSync(verificationPath, "utf8"))
-  : undefined;
 
 const rows = fs
   .readFileSync(monitorCsvPath, "utf8")
@@ -39,6 +32,10 @@ const pgActive = column(2);
 const pgLockWaits = column(3);
 const redisCpu = column(4);
 const lastRedisMem = rows.length ? rows[rows.length - 1][5] : "n/a";
+const poolPendingAcquires = column(6);
+const poolAvgAcquireSeconds = column(7);
+const poolP95AcquireSeconds = column(8);
+const poolMaxAcquireSeconds = column(9);
 
 console.log("");
 console.log("FLASH SALE LOAD TEST");
@@ -65,27 +62,11 @@ console.log(
   `Pool utilization     ${((avg(pgActive) / POOL_MAX) * 100).toFixed(0)}%`,
 );
 console.log(`Lock waits           ${peak(pgLockWaits)}`);
+console.log(`Pending acquires     ${peak(poolPendingAcquires)}`);
+console.log(`Avg acquire wait     ${avg(poolAvgAcquireSeconds).toFixed(3)}s`);
+console.log(`Peak acquire wait    ${peak(poolMaxAcquireSeconds).toFixed(3)}s`);
 console.log("");
 console.log("REDIS");
 console.log(`CPU avg              ${avg(redisCpu).toFixed(0)}%`);
 console.log(`Memory               ${lastRedisMem}`);
 console.log("");
-
-if (verification) {
-  console.log("VERIFICATION (Redis vs Postgres)");
-  console.log(
-    `Redis reservation calls   ${verification.redisReservationCalls}  (EVAL/EVALSHA — every purchase attempt is gated here)`,
-  );
-  console.log(`Redis keyspace hits       ${verification.redisKeyspaceHits}`);
-  console.log(`Redis keyspace misses     ${verification.redisKeyspaceMisses}`);
-  console.log(
-    `Postgres tx COMPLETED     ${verification.postgresTransactionsCompleted}  (should be << reservation calls, == legit purchases)`,
-  );
-  console.log(
-    `Postgres tx PENDING       ${verification.postgresTransactionsPending}  (stuck rows; should be 0)`,
-  );
-  console.log(
-    `Postgres duplicate buyers ${verification.postgresDuplicateBuyers}  (users with >1 row for this product; should be 0)`,
-  );
-  console.log("");
-}
