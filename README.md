@@ -4,8 +4,8 @@ A flash-sale application with a TypeScript/Express backend, React frontend, Post
 
 ## Prerequisites
 
-- Node.js
-- pnpm `8.10.2` or compatible
+- Node.js `22.22.0`
+- pnpm `10.17.1`
 - Docker Desktop with Docker Compose
 
 ## Run From the Root
@@ -15,7 +15,7 @@ All commands below should be run from the repository root.
 1. Install dependencies:
 
    ```sh
-   pnpm install
+   pnpm install --frozen-lockfile
    ```
 
 2. Start PostgreSQL, Redis, RabbitMQ, and the background workers:
