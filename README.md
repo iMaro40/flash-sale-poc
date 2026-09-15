@@ -152,16 +152,24 @@ Selected metrics from the latest three runs. Times are in seconds, rates are per
 | 2   | medium  |        1,725.6 |     0.730 |               547.9 |         48.178 |         48.494 |          31% |           94% |             150 |              285 |           18% |         52.38 MB |           36.230 |             0.096 |
 | 3   | heavy   |        1,511.0 |     3.966 |               606.4 |         54.549 |         54.666 |          24% |           72% |             144 |              323 |           17% |         57.26 MB |           41.772 |             0.089 |
 
+# Prefetch: 0, Max connections: 20
+
+Latest three runs from [stress-tests/results.csv](stress-tests/results.csv), recorded on September 15, 2026, at 11:02, 11:05, and 11:07 UTC. Times are in seconds, rates are per second, memory is in MB, and CPU values are percentages.
+
+The backend configures a maximum of 20 database connections. These CSV rows record `db_pool_max` as 10; the connection limit used during these runs needs verification.
+
+| Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
+| --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
+| 1   | light   |        2,154.1 |     0.246 |               573.8 |         43.899 |         43.964 |          46% |          100% |             147 |              192 |           21% |         20.94 MB |           26.184 |             0.100 |
+| 2   | medium  |        1,942.9 |     0.782 |               597.0 |         44.283 |         44.570 |          41% |           82% |             191 |              286 |           21% |         23.47 MB |           36.269 |             0.105 |
+| 3   | heavy   |        1,571.7 |     3.005 |               670.6 |         47.522 |         47.768 |          27% |           74% |             192 |              313 |           20% |         28.23 MB |           41.014 |             0.135 |
+
 ## Analysis
 
-Across these runs, completion throughput remains around 500–600 purchases per second while heavier load increases latency.We are able to accept/reject requests very fast, so the bottleneck then is the rest of the workflow which is completing the purchase.
+Firstly, testing showed that the database always converged to a correct state towards the end of the test (i.e. stock 0 for product, and matching number of transactions, no duplicate transactions, only one product poorchase per user). This proves integrity of the whole system.
 
-We tested to see if RabbitMQ is "too slow" by making the prefetch unbound (Prefetch: 0). Overall performance did not increase. If anything, it got slightly worse. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time
+Across these runs, completion throughput remains around 500–600 purchases per second while heavier load increases latency.Important to note is that P95 pool acquire is acceptably low, which shows we are sending requests to the database at an acceptable rate. We are also able to accept/reject requests very fast, so the bottleneck then is the rest of the workflow which is completing the purchase.
 
-With unlimited prefetch (Prefetch:0), substantial waiting accumulates in the worker’s database connection pool (see P95 pool acquire of Prefetch 0).
+Given this, to try and empirically isolate the bottleneck, we first tested to see if RabbitMQ is sending messages too slow by making the prefetch unbound (Prefetch: 0). Looking at the Pre Fetch 0 results, overall performance did not increase. If anything, it got slightly worse. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time to acquire a connection. Increasing the max. connections did not seem to increase overall performance either. The DB seems to conclusively be the bottleneck and it unable to keep up with the number of requests coming in.
 
-Firstly, testing shows that the database always converged to a correct state towards the end of the test (i.e. stock 0 for product, and matching number of transactions, no duplicate transactions, only one product poorchase per user).
-
-P99 latency degrades over heavier loads. Looking at the P95 pool acquire of Prefetch: 500, we can see that the main bottlenek is waiting for a connection pool from the database. I tested increasing the connection pool and it always simply maxed out everytime as well. This means that the database is simply not fast enough to handled heavier loads. To scale the system out, the first recommendation would be to scale out writes with the database. For example, a common technique would be to shard out the database. We could have 3 DB instances that each hold a number of stock, and requests could now be routed to multiple databases.
-
-What is interesting note is that Prefetch: 500 has better P99 latency. This shows that controlling the rate at which the database receives messages can improve performance because there is not an unbounded thundering herd waiting on the database. However, a
+For recommendations of scaling out, we can first try to increease the hardware specs of the DB to see if performance improves. Another common solution would be to shard the database with each database holding a certain amount of product. This way, we can scale out our write requests.
