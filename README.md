@@ -152,6 +152,14 @@ Times are in seconds, rates are per second, memory is in MB, and CPU values are 
 | 2   | medium  |        1,725.6 |     0.730 |               547.9 |         48.178 |         48.494 |          31% |           94% |             150 |              285 |           18% |         52.38 MB |           36.230 |             0.096 |
 | 3   | heavy   |        1,511.0 |     3.966 |               606.4 |         54.549 |         54.666 |          24% |           72% |             144 |              323 |           17% |         57.26 MB |           41.772 |             0.089 |
 
+# Prefetch: 0, Max connections: 20
+
+| Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
+| --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
+| 1   | light   |        1,904.6 |     0.226 |               564.5 |         42.883 |         43.313 |          43% |           88% |             168 |              196 |           18% |         21.22 MB |           25.832 |             0.197 |
+| 2   | medium  |        1,643.1 |     0.919 |               579.7 |         43.768 |         43.931 |          34% |           82% |             210 |              294 |           17% |         22.94 MB |           34.736 |             0.217 |
+| 3   | heavy   |        1,343.3 |     3.227 |               625.7 |         46.384 |         46.520 |          22% |           67% |             198 |              301 |           14% |         26.15 MB |           39.690 |             0.245 |
+
         0.135 |
 
 ## Analysis

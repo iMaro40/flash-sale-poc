@@ -7,7 +7,7 @@
     "backend": "pnpm --filter backend dev",
     "frontend": "pnpm --filter frontend dev",
     "server": "pnpm --filter backend dev",
-    "docker:up": "docker compose up -d",
+    "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "db:migrate": "npm --prefix backend run db:migrate",
     "test": "pnpm --filter backend exec vitest run",
