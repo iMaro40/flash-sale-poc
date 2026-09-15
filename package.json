@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "bootstrap": "corepack enable && corepack install && pnpm install --frozen-lockfile",
+    "bootstrap": "npm exec --yes --package=pnpm@10.17.1 -- pnpm install --frozen-lockfile",
     "backend": "pnpm --filter backend dev",
     "frontend": "pnpm --filter frontend dev",
     "server": "pnpm --filter backend dev",

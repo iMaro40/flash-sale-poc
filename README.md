@@ -5,7 +5,7 @@ A flash-sale application with a TypeScript/Express backend, React frontend, Post
 ## Prerequisites
 
 - Node.js `22.22.0`
-- Corepack enabled (`corepack enable`)
+- npm (used to select the repository's pnpm version)
 - pnpm `10.17.1` (selected from `package.json`)
 - Docker Desktop with Docker Compose
 
@@ -19,8 +19,8 @@ All commands below should be run from the repository root.
    pnpm run bootstrap
    ```
 
-   `pnpm run bootstrap` enables Corepack, which selects the exact pnpm version declared in
-   `package.json`, then installs from the lockfile without changing it.
+   `pnpm run bootstrap` downloads and uses pnpm `10.17.1`, then installs from the
+   lockfile without changing it.
 
 2. Start PostgreSQL, Redis, RabbitMQ, and the background workers:
 
@@ -65,6 +65,29 @@ Run integration tests after starting the Docker services and applying migrations
 ```sh
 pnpm test:integration:setup
 ```
+
+## Stress Tests
+
+Stress tests require `k6`, running Docker services, completed database migrations,
+and the backend API running on `http://localhost:3000`. Start the stack first:
+
+```sh
+pnpm docker:up
+pnpm db:migrate
+pnpm backend
+```
+
+Run a workload profile from another terminal:
+
+```sh
+pnpm test:stress:light
+pnpm test:stress:medium
+pnpm test:stress:heavy
+```
+
+Each run clears the application tables and Redis database before starting, then
+waits for queued purchases to finish and runs the integrity checks. Results are
+written to `stress-tests/results.csv`.
 
 ## Architecture Diagram
 
