@@ -140,27 +140,26 @@ Times are in seconds, rates are per second, memory is in MB, and CPU values are 
 
 | Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
 | --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
-| 1   | light   |        1,732.2 |     0.260 |               514.7 |         46.246 |         46.943 |          36% |           93% |             126 |              186 |           20% |         21.34 MB |            2.245 |             0.106 |
-| 2   | medium  |        1,756.4 |     1.302 |               540.5 |         48.680 |         49.062 |          36% |           79% |             153 |              284 |           20% |         23.79 MB |            2.232 |             0.092 |
-| 3   | heavy   |        1,286.0 |     3.051 |               579.0 |         48.369 |         48.581 |          22% |           80% |             148 |              266 |           18% |         26.70 MB |            2.255 |             0.096 |
+| 1 | light | 1,772.2 | 0.206 | 583.3 | 37.904 | 38.198 | 48% | 87% | 165 | 190 | 21% | 30.44 MB | 1.821 | 0.071 |
+| 2 | medium | 2,095.1 | 0.679 | 634.9 | 42.960 | 43.257 | 46% | 100% | 255 | 350 | 21% | 30.13 MB | 1.683 | 0.072 |
+| 3 | heavy | 2,313.0 | 2.251 | 780.8 | 46.291 | 46.613 | 39% | 88% | 329 | 442 | 20% | 30.46 MB | 1.525 | 0.061 |
 
 # Prefetch: 0, Max connections: 10
 
 | Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
 | --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
-| 1   | light   |        2,145.8 |     0.235 |               593.2 |         41.287 |         41.706 |          47% |           83% |             158 |              208 |           22% |         50.50 MB |           23.977 |             0.081 |
-| 2   | medium  |        1,725.6 |     0.730 |               547.9 |         48.178 |         48.494 |          31% |           94% |             150 |              285 |           18% |         52.38 MB |           36.230 |             0.096 |
-| 3   | heavy   |        1,511.0 |     3.966 |               606.4 |         54.549 |         54.666 |          24% |           72% |             144 |              323 |           17% |         57.26 MB |           41.772 |             0.089 |
+| 1 | light | 2,145.8 | 0.235 | 593.2 | 41.287 | 41.706 | 47% | 83% | 158 | 208 | 22% | 50.50 MB | 23.977 | 0.081 |
+| 2 | medium | 1,725.6 | 0.730 | 547.9 | 48.178 | 48.494 | 31% | 94% | 150 | 285 | 18% | 52.38 MB | 36.230 | 0.096 |
+| 3 | heavy | 1,511.0 | 3.966 | 606.4 | 54.549 | 54.666 | 24% | 72% | 144 | 323 | 17% | 57.26 MB | 41.772 | 0.089 |
 
 # Prefetch: 0, Max connections: 20
 
 | Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
 | --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
-| 1   | light   |        1,904.6 |     0.226 |               564.5 |         42.883 |         43.313 |          43% |           88% |             168 |              196 |           18% |         21.22 MB |           25.832 |             0.197 |
-| 2   | medium  |        1,643.1 |     0.919 |               579.7 |         43.768 |         43.931 |          34% |           82% |             210 |              294 |           17% |         22.94 MB |           34.736 |             0.217 |
-| 3   | heavy   |        1,343.3 |     3.227 |               625.7 |         46.384 |         46.520 |          22% |           67% |             198 |              301 |           14% |         26.15 MB |           39.690 |             0.245 |
+| 1 | light | 1,904.6 | 0.226 | 564.5 | 42.883 | 43.313 | 43% | 88% | 168 | 196 | 18% | 21.22 MB | 25.832 | 0.197 |
+| 2 | medium | 1,643.1 | 0.919 | 579.7 | 43.768 | 43.931 | 34% | 82% | 210 | 294 | 17% | 22.94 MB | 34.736 | 0.217 |
+| 3 | heavy | 1,478.8 | 2.632 | 662.8 | 45.275 | 45.799 | 27% | 88% | 198 | 313 | 15% | 29.96 MB | 39.085 | 0.216 |
 
-        0.135 |
 
 ## Analysis
 
@@ -170,6 +169,6 @@ Across these runs, completion throughput remains around 500–670 purchases per 
 
 Given this, to try and empirically isolate the bottleneck, we first tested to see if RabbitMQ is sending messages too slow by making the prefetch unbound (Prefetch: 0). Looking at the Pre Fetch 0 results, overall throughput did somewhat increase, but the latency became much worse for the heavy loads. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time to acquire a connection.
 
-Increasing the max. connections increease the performance somewhat again, but not by much. These all suggest that the database is the bottleneck. It is simply unable to keep up with the number of requests coming in.
+Increasing the max. connections did not seem to increase over all performance. If anything, it became a bit worse. These all suggest that the database is the bottleneck. It is simply unable to keep up with the number of requests coming in.
 
 For recommendations of scaling out, we can first try to increease the hardware specs of the DB to see if performance improves. Another common solution would be to scale out our write requests through sharding. For example, we could shard with multiple databases and each one holding a certain amount of stock of a product. This way, multiple db instances can support purchase requests for the same product.

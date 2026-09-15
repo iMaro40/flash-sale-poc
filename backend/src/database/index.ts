@@ -15,7 +15,7 @@ const connection = {
   database: process.env.POSTGRES_DB ?? "flash_sale",
 };
 
-export const DB_POOL_MAX = 20;
+export const DB_POOL_MAX = 10;
 
 export const database: Knex = knex({
   client: "pg",
