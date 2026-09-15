@@ -144,8 +144,6 @@ Selected metrics from the latest three runs. Times are in seconds, rates are per
 
 | Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
 | --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
-| 1   | light   |        2,343.9 |     0.250 |               538.5 |         48.634 |         48.928 |          40% |           88% |             141 |              218 |           20% |      25.98 MiB\* |            1.409 |             0.074 |
-| 2   | light   |        1,783.9 |     0.312 |               530.3 |         45.829 |         46.045 |          37% |           82% |             132 |              196 |           19% |      22.02 MiB\* |           27.907 |             0.101 |
-| 3   | medium  |        1,987.3 |     0.694 |               555.6 |         50.698 |         51.037 |          30% |           74% |             158 |              305 |           19% |       24.2 MiB\* |           37.468 |             0.089 |
-
-\* These three historical rows contain only the last Redis memory sample. New runs record the true average Redis memory for the test.
+| 1   | light   |        2,145.8 |     0.235 |               593.2 |         41.287 |         41.706 |          47% |           83% |             158 |              208 |           22% |         50.50 MB |           23.977 |             0.081 |
+| 2   | medium  |        1,725.6 |     0.730 |               547.9 |         48.178 |         48.494 |          31% |           94% |             150 |              285 |           18% |         52.38 MB |           36.230 |             0.096 |
+| 3   | heavy   |        1,511.0 |     3.966 |               606.4 |         54.549 |         54.666 |          24% |           72% |             144 |              323 |           17% |         57.26 MB |           41.772 |             0.089 |
