@@ -1,4 +1,5 @@
 import { database } from "../database";
+import { RedisUnavailableError } from "../errors/redis-unavailable";
 import { redisClient } from "../redis";
 import { ProductCache } from "./cache";
 import type { CreateProductInput } from "./dto/create-product";
@@ -20,7 +21,11 @@ export class ProductService {
   public async createProduct(input: CreateProductInput): Promise<Product> {
     const product = await this.productRepository.create(input);
     // Prewarm product details and stock in Redis
-    await this.productCache.setProduct(product);
+    try {
+      await this.productCache.setProduct(product);
+    } catch (error) {
+      throw new RedisUnavailableError(error);
+    }
     return product;
   }
 
@@ -56,7 +61,12 @@ export class ProductService {
   public async reserveStockByProductId(
     input: ReserveStockInput,
   ): Promise<StockReservationResult> {
-    let reservation = await this.productCache.reserveStockByProductId(input);
+    let reservation: StockReservationResult;
+    try {
+      reservation = await this.productCache.reserveStockByProductId(input);
+    } catch (error) {
+      throw new RedisUnavailableError(error);
+    }
 
     if (reservation.status !== StockReservationStatus.PRODUCT_CACHE_MISSING) {
       return reservation;
@@ -69,7 +79,11 @@ export class ProductService {
     }
 
     await this.productCache.setProduct(product);
-    reservation = await this.productCache.reserveStockByProductId(input);
+    try {
+      reservation = await this.productCache.reserveStockByProductId(input);
+    } catch (error) {
+      throw new RedisUnavailableError(error);
+    }
 
     return reservation;
   }

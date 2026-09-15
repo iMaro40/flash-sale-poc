@@ -39,11 +39,18 @@ export const rateLimiter = (options: RateLimiterOptions): RequestHandler => {
       const ip = request.ip ?? "unknown";
       const key = `rate-limit:${ip}`;
 
-      const requestCount = await incrementRequestCount(
-        redisClient,
-        key,
-        windowSeconds,
-      );
+      let requestCount: number;
+      try {
+        requestCount = await incrementRequestCount(
+          redisClient,
+          key,
+          windowSeconds,
+        );
+      } catch (error) {
+        console.error("Rate limiter unavailable; allowing request", error);
+        next();
+        return;
+      }
 
       if (requestCount > maxRequests) {
         response.status(429).json({

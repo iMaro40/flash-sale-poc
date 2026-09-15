@@ -7,8 +7,10 @@ import { DuplicateTransactionError } from "../errors/duplicate-transaction";
 import { OutOfStockError } from "../errors/out-of-stock";
 import { ProductAlreadyPurchasedError } from "../errors/product-already-purchased";
 import { ProductNotFoundError } from "../errors/product-not-found";
+import { RedisUnavailableError } from "../errors/redis-unavailable";
 import { TransactionInProgressError } from "../errors/transaction-in-progress";
 import { flashSaleService, FlashSaleService } from "../flash-sale/service";
+import { FlashSaleRepository } from "../flash-sale/repository";
 import { StockReservationStatus } from "../product/dto/reserve-stock";
 import { ProductRepository } from "../product/repository";
 import { productService, ProductService } from "../product/service";
@@ -29,6 +31,12 @@ export class PurchaseService {
     private readonly transactionRepository: TransactionRepository = new TransactionRepository(
       db,
     ),
+    private readonly productRepository: ProductRepository = new ProductRepository(
+      db,
+    ),
+    private readonly flashSaleRepository: FlashSaleRepository = new FlashSaleRepository(
+      db,
+    ),
   ) {}
 
   // Reserves stock synchronously (fast, Redis-only), then hands the actual DB
@@ -37,12 +45,27 @@ export class PurchaseService {
   public async purchaseProduct(
     input: PurchaseProductInput,
   ): Promise<PurchaseAcceptanceStatus> {
-    const shouldProceed = await this.reserveStock(input);
+    let shouldProceed: boolean;
+    try {
+      shouldProceed = await this.reserveStock(input);
+    } catch (error) {
+      if (!(error instanceof RedisUnavailableError)) {
+        throw error;
+      }
+
+      return this.purchaseUsingDatabaseFallback(input);
+    }
 
     if (!shouldProceed) {
       return PurchaseAcceptanceStatus.ALREADY_COMPLETED;
     }
 
+    return this.enqueuePurchase(input);
+  }
+
+  private async enqueuePurchase(
+    input: PurchaseProductInput,
+  ): Promise<PurchaseAcceptanceStatus> {
     const transaction =
       await this.transactionRepository.createPendingTransaction(input);
     const channel = this.getChannel();
@@ -57,6 +80,99 @@ export class PurchaseService {
     );
 
     return PurchaseAcceptanceStatus.ACCEPTED;
+  }
+
+  // If Redis is down, we query the DB directly to determine if the purchase can proceed
+  // This is only meant to be last resort since this is not performant
+  private async purchaseUsingDatabaseFallback(
+    input: PurchaseProductInput,
+  ): Promise<PurchaseAcceptanceStatus> {
+    const activeFlashSale =
+      await this.flashSaleRepository.findActiveFlashSaleByProductId(
+        input.productId,
+        new Date(),
+      );
+    if (!activeFlashSale) {
+      throw new ActiveFlashSaleNotFoundError(input.productId);
+    }
+
+    const product = await this.productRepository.findById(input.productId);
+    if (!product) {
+      throw new ProductNotFoundError(input.productId);
+    }
+    if (product.stock <= 0) {
+      throw new OutOfStockError(input.productId);
+    }
+
+    const existingByIdempotency =
+      await this.transactionRepository.getTransactionByIdempotencyKeyAndUserId(
+        input.idempotencyKey,
+        input.userId,
+      );
+    if (existingByIdempotency) {
+      if (existingByIdempotency.status === TransactionStatus.COMPLETED) {
+        return PurchaseAcceptanceStatus.ALREADY_COMPLETED;
+      }
+
+      throw new DuplicateTransactionError(input.idempotencyKey);
+    }
+
+    const existingByProduct =
+      await this.transactionRepository.getTransactionByUserIdAndProductId(
+        input.userId,
+        input.productId,
+      );
+    if (existingByProduct) {
+      if (existingByProduct.status === TransactionStatus.COMPLETED) {
+        throw new ProductAlreadyPurchasedError(input.userId, input.productId);
+      }
+
+      throw new TransactionInProgressError(input.productId);
+    }
+
+    try {
+      return await this.enqueuePurchase(input);
+    } catch (error) {
+      if (!this.isUniqueConstraintViolation(error)) {
+        throw error;
+      }
+
+      return this.resolveDatabaseDuplicate(input);
+    }
+  }
+
+  private async resolveDatabaseDuplicate(
+    input: PurchaseProductInput,
+  ): Promise<PurchaseAcceptanceStatus> {
+    const existingByIdempotency =
+      await this.transactionRepository.getTransactionByIdempotencyKeyAndUserId(
+        input.idempotencyKey,
+        input.userId,
+      );
+    if (existingByIdempotency?.status === TransactionStatus.COMPLETED) {
+      return PurchaseAcceptanceStatus.ALREADY_COMPLETED;
+    }
+    if (existingByIdempotency) {
+      throw new DuplicateTransactionError(input.idempotencyKey);
+    }
+
+    const existingByProduct =
+      await this.transactionRepository.getTransactionByUserIdAndProductId(
+        input.userId,
+        input.productId,
+      );
+    if (existingByProduct?.status === TransactionStatus.COMPLETED) {
+      throw new ProductAlreadyPurchasedError(input.userId, input.productId);
+    }
+    if (existingByProduct) {
+      throw new TransactionInProgressError(input.productId);
+    }
+
+    throw new Error("Transaction uniqueness conflict could not be resolved");
+  }
+
+  private isUniqueConstraintViolation(error: unknown): boolean {
+    return this.getErrorCode(error) === "23505";
   }
 
   // Performs the actual DB write for a reserved purchase. Called by the purchase worker
