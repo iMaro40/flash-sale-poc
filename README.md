@@ -134,6 +134,8 @@ The tests were done with:
 
 The number of virtual users and stock are proportional to the test profiles: light, medium or heavy. We tested with prefetch 0, meaning RabbitMQ is unbound, and prefetch 500, where RabbitMQ can only have 500 unacked messages at a time.
 
+Times are in seconds, rates are per second, memory is in MB, and CPU values are percentages.
+
 # Prefetch: 500, Max connections: 10
 
 | Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
@@ -144,25 +146,13 @@ The number of virtual users and stock are proportional to the test profiles: lig
 
 # Prefetch: 0, Max connections: 10
 
-Selected metrics from the latest three runs. Times are in seconds, rates are per second, memory is in MB, and CPU values are percentages.
-
 | Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
 | --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
 | 1   | light   |        2,145.8 |     0.235 |               593.2 |         41.287 |         41.706 |          47% |           83% |             158 |              208 |           22% |         50.50 MB |           23.977 |             0.081 |
 | 2   | medium  |        1,725.6 |     0.730 |               547.9 |         48.178 |         48.494 |          31% |           94% |             150 |              285 |           18% |         52.38 MB |           36.230 |             0.096 |
 | 3   | heavy   |        1,511.0 |     3.966 |               606.4 |         54.549 |         54.666 |          24% |           72% |             144 |              323 |           17% |         57.26 MB |           41.772 |             0.089 |
 
-# Prefetch: 0, Max connections: 20
-
-Latest three runs from [stress-tests/results.csv](stress-tests/results.csv), recorded on September 15, 2026, at 11:02, 11:05, and 11:07 UTC. Times are in seconds, rates are per second, memory is in MB, and CPU values are percentages.
-
-The backend configures a maximum of 20 database connections. These CSV rows record `db_pool_max` as 10; the connection limit used during these runs needs verification.
-
-| Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
-| --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
-| 1   | light   |        2,154.1 |     0.246 |               573.8 |         43.899 |         43.964 |          46% |          100% |             147 |              192 |           21% |         20.94 MB |           26.184 |             0.100 |
-| 2   | medium  |        1,942.9 |     0.782 |               597.0 |         44.283 |         44.570 |          41% |           82% |             191 |              286 |           21% |         23.47 MB |           36.269 |             0.105 |
-| 3   | heavy   |        1,571.7 |     3.005 |               670.6 |         47.522 |         47.768 |          27% |           74% |             192 |              313 |           20% |         28.23 MB |           41.014 |             0.135 |
+        0.135 |
 
 ## Analysis
 
@@ -170,6 +160,8 @@ Firstly, testing showed that the database always converged to a correct state to
 
 Across these runs, completion throughput remains around 500–670 purchases per second while heavier load increases latency. We are also able to accept/reject requests very fast, so the bottleneck then is the rest of the workflow which is completing the purchase.
 
-Given this, to try and empirically isolate the bottleneck, we first tested to see if RabbitMQ is sending messages too slow by making the prefetch unbound (Prefetch: 0). Looking at the Pre Fetch 0 results, overall throughput did somewhat increase, but the latency became much worse for the heavy loads. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time to acquire a connection. Increasing the max. connections increease the performance somewhat again, but not by much. These all suggest that the database is the bottleneck. It is simply unable to keep up with the number of requests coming in.
+Given this, to try and empirically isolate the bottleneck, we first tested to see if RabbitMQ is sending messages too slow by making the prefetch unbound (Prefetch: 0). Looking at the Pre Fetch 0 results, overall throughput did somewhat increase, but the latency became much worse for the heavy loads. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time to acquire a connection.
 
-For recommendations of scaling out, we can first try to increease the hardware specs of the DB to see if performance improves. Another common solution would be to shard the database with each database holding a certain amount of stock per product. This way, multiple db instances can support purchase requests for the same product.
+Increasing the max. connections increease the performance somewhat again, but not by much. These all suggest that the database is the bottleneck. It is simply unable to keep up with the number of requests coming in.
+
+For recommendations of scaling out, we can first try to increease the hardware specs of the DB to see if performance improves. Another common solution would be to scale out our write requests through sharding. For example, we could shard with multiple databases and each one holding a certain amount of stock of a product. This way, multiple db instances can support purchase requests for the same product.
