@@ -4,7 +4,7 @@ type Transaction = {
   id: string
   productId: string
   userId: string
-  status: 'PENDING' | 'COMPLETED'
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED'
   createdAt: string
   updatedAt: string
 }

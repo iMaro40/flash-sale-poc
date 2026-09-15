@@ -20,5 +20,5 @@ export const getFlashSalesByProductIdRequestSchema = z.object({
 });
 
 export const getFlashSaleByIdRequestSchema = z.object({
-  flashSaleId: z.string(),
+  flashSaleId: z.string().trim().uuid(),
 });

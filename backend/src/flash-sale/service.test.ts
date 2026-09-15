@@ -209,7 +209,7 @@ describe("FlashSaleService.createFlashSale", () => {
     endTime: new Date(Date.now() + 120_000),
   };
 
-  it("creates a flash sale for an existing product without overlap", async () => {
+  it("creates an upcoming flash sale without caching it as active", async () => {
     const { service, productService, repository, cache } = createService();
     productService.getProductById.mockResolvedValue(product);
     repository.findOverlappingFlashSaleByProductId.mockResolvedValue(undefined);
@@ -219,10 +219,28 @@ describe("FlashSaleService.createFlashSale", () => {
 
     expect(result).toBe("flash-sale-1");
     expect(repository.createFlashSale).toHaveBeenCalledWith(input);
+    // A future sale must not overwrite the cached window of a currently active sale.
+    expect(cache.setActiveFlashSale).not.toHaveBeenCalled();
+  });
+
+  it("creates an active flash sale and caches it", async () => {
+    const { service, productService, repository, cache } = createService();
+    const activeInput: CreateFlashSaleInput = {
+      productId: product.id,
+      startTime: new Date(Date.now() - 60_000),
+      endTime: new Date(Date.now() + 60_000),
+    };
+    productService.getProductById.mockResolvedValue(product);
+    repository.findOverlappingFlashSaleByProductId.mockResolvedValue(undefined);
+    repository.createFlashSale.mockResolvedValue("flash-sale-1");
+
+    const result = await service.createFlashSale(activeInput);
+
+    expect(result).toBe("flash-sale-1");
     expect(cache.setActiveFlashSale).toHaveBeenCalledWith({
       id: "flash-sale-1",
-      ...input,
-      status: FlashSaleStatus.UPCOMING,
+      ...activeInput,
+      status: FlashSaleStatus.ACTIVE,
     });
   });
 

@@ -11,7 +11,8 @@ import { transactionRouter } from "./transactions/router";
 export const app: Express = express();
 
 app.use(cors());
-app.use(express.json());
+// Cap request body size to reduce large-payload DoS exposure.
+app.use(express.json({ limit: "100kb" }));
 // Arbitrarily high rate limit so that it doesn't interfere with stress tests. For production use case definitely set this to an arbitrary number
 // Also for production use case, might need some set up where we mock different IP's for each virtual user
 app.use(rateLimiter({ maxRequests: 500000, windowSeconds: 1 }));
