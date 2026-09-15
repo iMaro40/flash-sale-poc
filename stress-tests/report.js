@@ -38,7 +38,7 @@ const pgActive = column(2);
 const pgLockWaits = column(3);
 const redisCpu = column(4);
 const lastRedisMem = rows.length ? rows[rows.length - 1][5] : "n/a";
-const poolPendingAcquires = column(6);
+const peakPoolWaiters = column(6);
 const poolAvgAcquireSeconds = column(7);
 const poolP95AcquireSeconds = column(8);
 const poolMaxAcquireSeconds = column(9);
@@ -52,15 +52,18 @@ console.log("FLASH SALE LOAD TEST");
 console.log("-".repeat(40));
 console.log("");
 console.log(`                     ${profile.toUpperCase()}`);
+console.log("HTTP (K6 ADMISSION METRICS)");
 console.log(`Duration             ${k6Summary.durationSeconds}s`);
 console.log(
-  `Avg accepted/s       ${k6Summary.avgAcceptedPerSecond}  (admission only, see INTEGRITY below for real completions/s)`,
+  `Avg accepted/s       ${k6Summary.avgAcceptedPerSecond}  (admission only; see INTEGRITY for completions/s)`,
 );
-console.log(`avg admit latency    ${k6Summary.avgLatencySeconds}s`);
-console.log(`p95 admit latency    ${k6Summary.p95LatencySeconds}s`);
-console.log(`p99 admit latency    ${k6Summary.p99LatencySeconds}s`);
+console.log(`Avg admit latency    ${k6Summary.avgLatencySeconds}s`);
+console.log(`P95 admit latency    ${k6Summary.p95LatencySeconds}s`);
+console.log(`P99 admit latency    ${k6Summary.p99LatencySeconds}s`);
 console.log(`Error rate           ${k6Summary.errorRatePercent}%`);
-console.log(`Stock ran out at     ${k6Summary.stockRanOutAtSeconds}s`);
+console.log(
+  `First out-of-stock   ${k6Summary.firstOutOfStockResponseSeconds ?? k6Summary.stockRanOutAtSeconds ?? "n/a"}s`,
+);
 console.log("");
 console.log("NODE");
 console.log(`CPU avg              ${avg(nodeCpu).toFixed(0)}%`);
@@ -69,30 +72,30 @@ console.log(`Memory avg           ${(avg(nodeMemKb) / 1024).toFixed(0)}MB`);
 console.log(`Memory peak          ${(peak(nodeMemKb) / 1024).toFixed(0)}MB`);
 console.log("");
 console.log("POSTGRES");
-console.log(`Active sessions (DB) ${avg(pgActive).toFixed(0)}`);
+console.log(`Active sessions (DB avg) ${avg(pgActive).toFixed(0)}`);
 console.log(
   `Worker pool use     ${avg(workerActiveConnections).toFixed(1)} avg / ${peak(workerActiveConnections)} peak of ${POOL_MAX}`,
 );
-console.log(`Lock waits           ${peak(pgLockWaits)}`);
-console.log(`Pending acquires     ${peak(poolPendingAcquires)}`);
+console.log(`Row lock waiters (peak) ${peak(pgLockWaits)}`);
+console.log(`Pool waiters (peak)  ${peak(peakPoolWaiters)}`);
 console.log(
-  `Avg acquire wait     ${avg(poolAvgAcquireSeconds).toFixed(3)}s  (latest 2000 requests)`,
+  `Avg pool acquire wait ${avg(poolAvgAcquireSeconds).toFixed(3)}s  (avg of samples; latest 2000 acquisitions)`,
 );
 console.log(
-  `p95 acquire wait     ${avg(poolP95AcquireSeconds).toFixed(3)}s  (latest 2000 requests)`,
+  `P95 pool acquire wait ${avg(poolP95AcquireSeconds).toFixed(3)}s  (avg of samples; latest 2000 acquisitions)`,
 );
-console.log(`Peak acquire wait    ${peak(poolMaxAcquireSeconds).toFixed(3)}s`);
+console.log(`Peak pool acquire wait ${peak(poolMaxAcquireSeconds).toFixed(3)}s`);
 console.log(
-  `Avg lock wait        ${avg(lockWaitAvgSeconds).toFixed(3)}s  (latest 2000 requests)`,
+  `Avg row lock wait    ${avg(lockWaitAvgSeconds).toFixed(3)}s  (avg of samples; latest 2000 locks)`,
 );
 console.log(
-  `p95 lock wait        ${avg(lockWaitP95Seconds).toFixed(3)}s  (latest 2000 requests)`,
+  `P95 row lock wait    ${avg(lockWaitP95Seconds).toFixed(3)}s  (avg of samples; latest 2000 locks)`,
 );
-console.log(`Peak lock wait       ${peak(lockWaitMaxSeconds).toFixed(3)}s`);
+console.log(`Peak row lock wait   ${peak(lockWaitMaxSeconds).toFixed(3)}s`);
 console.log("");
 console.log("REDIS");
 console.log(`CPU avg              ${avg(redisCpu).toFixed(0)}%`);
-console.log(`Memory               ${lastRedisMem}`);
+console.log(`Memory (last sample) ${lastRedisMem}`);
 console.log("");
 
 if (integrityRow) {
@@ -125,10 +128,10 @@ if (integrityRow) {
   );
   console.log(`Final stock (DB)     ${finalStock}`);
   console.log(`Transactions total   ${transactionsTotal}`);
-  console.log(`Transactions done    ${transactionsCompleted}`);
-  console.log(`Users attempted      ${usersAttempted}`);
-  console.log(`Users completed      ${uniqueUsersCompleted}`);
-  console.log(`Avg completed/s      ${avgCompletedPerSecond ?? "n/a"}`);
+  console.log(`Transactions completed ${transactionsCompleted}`);
+  console.log(`Unique users attempted ${usersAttempted}`);
+  console.log(`Unique users completed ${uniqueUsersCompleted}`);
+  console.log(`Avg DB completions/s  ${avgCompletedPerSecond ?? "n/a"}`);
   console.log(
     `Avg completion latency (admit->commit)  ${avgCompletionLatencySeconds || "n/a"}s`,
   );

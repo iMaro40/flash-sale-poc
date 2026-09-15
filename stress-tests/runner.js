@@ -38,8 +38,8 @@ export function createPurchaseLoadTest(config) {
   const sameUserRaceBothSucceeded = new Counter(
     "same_user_race_both_succeeded",
   );
-  // Records seconds-since-test-start for every genuine out-of-stock 409; the metric's min is
-  // effectively "when stock started running out".
+  // Records seconds-since-test-start for every genuine out-of-stock 409. The minimum is the first
+  // out-of-stock response, not the exact instant Redis reached zero.
   const outOfStockElapsedSeconds = new Trend("out_of_stock_elapsed_seconds");
 
   // 409 is shared by OutOfStockError, DuplicateTransactionError, ProductAlreadyPurchasedError, and
@@ -287,7 +287,7 @@ export function createPurchaseLoadTest(config) {
     const maxVUs = data.metrics.vus_max?.values.max ?? 0;
     const percent = (n) =>
       totalRequests > 0 ? ((n / totalRequests) * 100).toFixed(1) : "0.0";
-    const stockRanOutAtSeconds =
+    const firstOutOfStockResponseSeconds =
       data.metrics.out_of_stock_elapsed_seconds?.values.min;
     const durationSecondsTotal = (data.state?.testRunDurationMs ?? 0) / 1000;
 
@@ -299,7 +299,8 @@ export function createPurchaseLoadTest(config) {
     // throughput — purchases are async now, so k6 never observes the worker actually committing to
     // Postgres. Real completed/s and completion latency come from integrity-check.ts querying
     // transactions.created_at/updated_at after the run.
-    const preDepletionSeconds = stockRanOutAtSeconds ?? durationSecondsTotal;
+    const preDepletionSeconds =
+      firstOutOfStockResponseSeconds ?? durationSecondsTotal;
     const preDepletionBucketCount = Math.min(
       Math.ceil(preDepletionSeconds / BUCKET_SECONDS),
       acceptedBucketCounts.length,
@@ -330,9 +331,9 @@ export function createPurchaseLoadTest(config) {
       `Different-key race attempts (same user):    ${differentKeyRaceAttemptsCount}`,
       `Same-user race BOTH succeeded (bug!):        ${sameUserRaceBothSucceededCount}`,
       "",
-      stockRanOutAtSeconds !== undefined
-        ? `Stock started running out at: ${stockRanOutAtSeconds.toFixed(1)}s into the test`
-        : "Stock started running out at: never (stock never depleted)",
+      firstOutOfStockResponseSeconds !== undefined
+        ? `First out-of-stock response: ${firstOutOfStockResponseSeconds.toFixed(1)}s into the test`
+        : "First out-of-stock response: never (stock never depleted)",
       "",
       "HTTP admission latency (s) — accept/reject only, NOT purchase completion:",
       `  avg:  ${durationSeconds("avg")}`,
@@ -356,7 +357,8 @@ export function createPurchaseLoadTest(config) {
       p95LatencySeconds: durationSeconds("p(95)"),
       p99LatencySeconds: durationSeconds("p(99)"),
       errorRatePercent: errorRatePercent.toFixed(2),
-      stockRanOutAtSeconds: stockRanOutAtSeconds?.toFixed(1) ?? "n/a",
+      firstOutOfStockResponseSeconds:
+        firstOutOfStockResponseSeconds?.toFixed(1) ?? "n/a",
     };
 
     return {

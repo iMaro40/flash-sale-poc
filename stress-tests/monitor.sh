@@ -10,7 +10,7 @@ WORKER_METRICS_PORT="${WORKER_METRICS_PORT:-3001}"
 : > "$OUT_FILE"
 # Trailing final_stock/transactions_*/unique_users_*/completion_* columns are left blank here and
 # filled in by integrity-check.ts once the stress test finishes.
-echo "node_cpu_percent,node_memory_kb,pg_active_sessions,pg_lock_waits,redis_cpu_percent,redis_memory,pending_acquires,avg_acquire_wait_seconds,p95_acquire_wait_seconds,peak_acquire_wait_seconds,avg_lock_wait_seconds,p95_lock_wait_seconds,peak_lock_wait_seconds,final_stock,transactions_total,transactions_completed,unique_users_attempted,unique_users_completed,avg_completed_per_second,avg_completion_latency_seconds,p95_completion_latency_seconds,p99_completion_latency_seconds,worker_active_connections" >> "$OUT_FILE"
+echo "node_cpu_percent,node_memory_kb,pg_active_sessions,pg_lock_waiters,redis_cpu_percent,redis_memory_last_sample,pending_pool_waiters,avg_pool_acquire_wait_seconds,p95_pool_acquire_wait_seconds,peak_pool_acquire_wait_seconds,avg_row_lock_wait_seconds,p95_row_lock_wait_seconds,peak_row_lock_wait_seconds,final_stock,transactions_total,transactions_completed,unique_users_attempted,unique_users_completed,avg_completed_per_second,avg_completion_latency_seconds,p95_completion_latency_seconds,p99_completion_latency_seconds,worker_active_connections" >> "$OUT_FILE"
 
 while true; do
   NODE_PID=$(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null | head -n1)
