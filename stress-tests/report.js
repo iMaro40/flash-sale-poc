@@ -44,7 +44,10 @@ const nodeMemKb = column(1);
 const pgActive = column(2);
 const pgLockWaits = column(3);
 const redisCpu = column(4);
-const lastRedisMem = rows.length ? rows[rows.length - 1][5] : "n/a";
+const redisMemoryMb = rows
+  .map((row) => Number.parseFloat(row[5]) || 0)
+  .filter((value) => value > 0);
+const avgRedisMemoryMb = avg(redisMemoryMb);
 const peakPoolWaiters = column(6);
 const poolAvgAcquireSeconds = column(7);
 const poolP95AcquireSeconds = column(8);
@@ -101,7 +104,7 @@ if (shouldRecord) {
     "p95_row_lock_wait_seconds",
     "peak_row_lock_wait_seconds",
     "redis_cpu_avg_percent",
-    "redis_memory_last_sample",
+    "redis_memory_avg_mb",
     "final_stock",
     "transactions_total",
     "transactions_completed",
@@ -140,7 +143,7 @@ if (shouldRecord) {
     avg(lockWaitP95Seconds).toFixed(3),
     peak(lockWaitMaxSeconds).toFixed(3),
     avg(redisCpu).toFixed(0),
-    lastRedisMem,
+    avgRedisMemoryMb.toFixed(2),
     integrity[13],
     integrity[14],
     integrity[15],
@@ -199,7 +202,7 @@ console.log(`Peak row lock wait   ${peak(lockWaitMaxSeconds).toFixed(3)}s`);
 console.log("");
 console.log("REDIS");
 console.log(`CPU avg              ${avg(redisCpu).toFixed(0)}%`);
-console.log(`Memory (last sample) ${lastRedisMem}`);
+console.log(`Memory avg           ${avgRedisMemoryMb.toFixed(2)}MB`);
 console.log("");
 
 if (integrityRow) {
