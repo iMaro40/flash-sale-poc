@@ -66,6 +66,11 @@ Run integration tests after starting the Docker services and applying migrations
 pnpm test:integration
 ```
 
+> Integration tests stop the purchase and reconciliation workers so the tests
+> can process RabbitMQ messages deterministically. Before running stress tests,
+> restart the full stack with `pnpm docker:up`, then run the database migration
+> and backend setup commands from the Stress Tests section below.
+
 ## Stress Tests
 
 Stress tests require `k6`, running Docker services, completed database migrations,
@@ -91,24 +96,24 @@ written to `stress-tests/results.csv`.
 
 ### Stress-Test Statistics
 
-| Statistic | Description |
-| --- | --- |
-| Duration | Total length of the k6 workload. |
-| Average accepted/s | Average HTTP purchase-admission rate; this measures Redis-backed admission, not completed purchases. |
-| Average/P95/P99 admission latency | Average and tail time for purchase requests to be accepted or rejected. |
-| Error rate | Percentage of k6 requests that fail the configured request checks. |
-| First out-of-stock | Time until the first request is rejected because reserved stock is exhausted. |
-| Node CPU and memory | Average and peak CPU and resident memory used by the backend process. |
-| DB active queries | Average number of active PostgreSQL queries sampled during the run. |
-| Pool connections | Average and peak worker database-pool connections in use. |
-| Pool acquire wait | Average, P95, and peak time waiting for an available database-pool connection. |
-| Row-lock wait | Average, P95, and peak time waiting for PostgreSQL row locks. |
-| Redis CPU and memory | Average Redis CPU usage and sampled memory consumption. |
-| Final stock | Remaining product stock measured directly from PostgreSQL after queued work drains. |
-| Transactions total/completed | Total purchase transactions created and the number completed successfully. |
-| Unique users attempted/completed | Number of distinct users that attempted purchases and those whose purchases completed. |
-| Average DB completions/s | Average rate at which completed purchases were committed to PostgreSQL. |
-| Completion latency | Average, P95, and P99 time from admission until the purchase commit was recorded in PostgreSQL. |
+| Statistic                         | Description                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Duration                          | Total length of the k6 workload.                                                                     |
+| Average accepted/s                | Average HTTP purchase-admission rate; this measures Redis-backed admission, not completed purchases. |
+| Average/P95/P99 admission latency | Average and tail time for purchase requests to be accepted or rejected.                              |
+| Error rate                        | Percentage of k6 requests that fail the configured request checks.                                   |
+| First out-of-stock                | Time until the first request is rejected because reserved stock is exhausted.                        |
+| Node CPU and memory               | Average and peak CPU and resident memory used by the backend process.                                |
+| DB active queries                 | Average number of active PostgreSQL queries sampled during the run.                                  |
+| Pool connections                  | Average and peak worker database-pool connections in use.                                            |
+| Pool acquire wait                 | Average, P95, and peak time waiting for an available database-pool connection.                       |
+| Row-lock wait                     | Average, P95, and peak time waiting for PostgreSQL row locks.                                        |
+| Redis CPU and memory              | Average Redis CPU usage and sampled memory consumption.                                              |
+| Final stock                       | Remaining product stock measured directly from PostgreSQL after queued work drains.                  |
+| Transactions total/completed      | Total purchase transactions created and the number completed successfully.                           |
+| Unique users attempted/completed  | Number of distinct users that attempted purchases and those whose purchases completed.               |
+| Average DB completions/s          | Average rate at which completed purchases were committed to PostgreSQL.                              |
+| Completion latency                | Average, P95, and P99 time from admission until the purchase commit was recorded in PostgreSQL.      |
 
 ## Architecture Diagram
 
