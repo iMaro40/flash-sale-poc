@@ -72,10 +72,10 @@ flowchart LR
     API --> Queue[RabbitMQ]
     Queue --> Worker[Purchase Worker]
     Worker -->|Complete purchase| DB
-    Worker -->|Update reservation| Redis
+    Redis -.-|Update reservation| Worker
     Queue -->|Failed messages| DLQ[Dead-letter Queue]
     Reconciler[Reconciliation Worker] -->|Cancel stale purchases| DB
-    Reconciler -->|Release reservations| Redis
+    Redis -.-|Release reservation| Reconciler
 ```
 
 The API returns `202 Accepted` after submitting a purchase for processing. The frontend polls for its final status. The purchase flow below explains transaction locking, retries, and reservation handling.
