@@ -15,31 +15,21 @@ export function createPurchaseLoadTest(config) {
   } = config;
 
   // Custom metrics so the summary breaks results down by outcome, not just pass/fail.
-  // NOTE: purchases are async now (reserve in Redis -> queue -> worker writes Postgres), so a
-  // 202 here only means "accepted for processing", not "purchase completed". Real completion
-  // throughput/latency can only be measured from Postgres afterward (see integrity-check.ts).
+  // Purchases are asynchronous: a 202 means reserved and queued, not completed.
   const accepted = new Counter("purchases_accepted");
   const alreadyCompleted = new Counter("purchases_already_completed");
   const outOfStock = new Counter("purchases_out_of_stock");
   const rateLimited = new Counter("purchases_rate_limited");
   const otherErrors = new Counter("purchases_other_errors");
-  // Every iteration uses a brand-new userId, so this counts unique users that attempted a
-  // purchase — tracked client-side because rejected attempts (e.g. out of stock) never reach the DB.
   const usersAttempted = new Counter("users_attempted");
   const doublePurchaseAttempts = new Counter("double_purchase_attempts");
-  // Both succeeding here is correct: it's a retry with the same idempotency key, not a double
-  // purchase. Informational only, not a bug indicator.
   const doublePurchaseBothSucceeded = new Counter(
     "double_purchase_both_succeeded",
   );
   const differentKeyRaceAttempts = new Counter("different_key_race_attempts");
-  // Real bug indicator: the same user completed two distinct purchases (different idempotency
-  // keys fired concurrently), which the one-purchase-per-user invariant should prevent.
   const sameUserRaceBothSucceeded = new Counter(
     "same_user_race_both_succeeded",
   );
-  // Records seconds-since-test-start for every genuine out-of-stock 409. The minimum is the first
-  // out-of-stock response, not the exact instant Redis reached zero.
   const outOfStockElapsedSeconds = new Trend("out_of_stock_elapsed_seconds");
 
   // 409 is shared by OutOfStockError, DuplicateTransactionError, ProductAlreadyPurchasedError, and
@@ -269,24 +259,9 @@ export function createPurchaseLoadTest(config) {
       return value !== undefined ? (value / 1000).toFixed(3) : "n/a";
     };
 
-    const acceptedCount = count("purchases_accepted");
-    const alreadyCompletedCount = count("purchases_already_completed");
-    const outOfStockCount = count("purchases_out_of_stock");
-    const rateLimitedCount = count("purchases_rate_limited");
     const otherErrorCount = count("purchases_other_errors");
     const usersAttemptedCount = count("users_attempted");
-    const doublePurchaseAttemptsCount = count("double_purchase_attempts");
-    const doublePurchaseBothSucceededCount = count(
-      "double_purchase_both_succeeded",
-    );
-    const differentKeyRaceAttemptsCount = count("different_key_race_attempts");
-    const sameUserRaceBothSucceededCount = count(
-      "same_user_race_both_succeeded",
-    );
     const totalRequests = data.metrics.http_reqs?.values.count ?? 0;
-    const maxVUs = data.metrics.vus_max?.values.max ?? 0;
-    const percent = (n) =>
-      totalRequests > 0 ? ((n / totalRequests) * 100).toFixed(1) : "0.0";
     const firstOutOfStockResponseSeconds =
       data.metrics.out_of_stock_elapsed_seconds?.values.min;
     const durationSecondsTotal = (data.state?.testRunDurationMs ?? 0) / 1000;
@@ -311,38 +286,6 @@ export function createPurchaseLoadTest(config) {
     const avgAcceptedPerSecond =
       preDepletionSeconds > 0 ? preDepletionAccepted / preDepletionSeconds : 0;
 
-    const lines = [
-      "",
-      `Max VUs:            ${maxVUs}`,
-      `Total requests:      ${totalRequests}`,
-      "",
-      `Avg accepted/s (pre-depletion, admission only): ${avgAcceptedPerSecond.toFixed(1)}`,
-      "(Real completed/s + latency now come from Postgres — see integrity check output below)",
-      "",
-      `Accepted (202):        ${acceptedCount}  (${percent(acceptedCount)}%)`,
-      `Already completed (200): ${alreadyCompletedCount}  (${percent(alreadyCompletedCount)}%)`,
-      `Out of stock (409):  ${outOfStockCount}  (${percent(outOfStockCount)}%)`,
-      `Rate limited (429):  ${rateLimitedCount}  (${percent(rateLimitedCount)}%)`,
-      `Other errors:        ${otherErrorCount}  (${percent(otherErrorCount)}%)`,
-      "",
-      `Idempotent-retry attempts (same key):      ${doublePurchaseAttemptsCount}`,
-      `Idempotent-retry BOTH succeeded (expected): ${doublePurchaseBothSucceededCount}`,
-      "",
-      `Different-key race attempts (same user):    ${differentKeyRaceAttemptsCount}`,
-      `Same-user race BOTH succeeded (bug!):        ${sameUserRaceBothSucceededCount}`,
-      "",
-      firstOutOfStockResponseSeconds !== undefined
-        ? `First out-of-stock response: ${firstOutOfStockResponseSeconds.toFixed(1)}s into the test`
-        : "First out-of-stock response: never (stock never depleted)",
-      "",
-      "HTTP admission latency (s) — accept/reject only, NOT purchase completion:",
-      `  avg:  ${durationSeconds("avg")}`,
-      `  p90:  ${durationSeconds("p(90)")}`,
-      `  p95:  ${durationSeconds("p(95)")}`,
-      `  max:  ${durationSeconds("max")}`,
-      "",
-    ];
-
     // Printed so the run.sh wrapper can pass this into the DB integrity check.
     console.log(`USERS_ATTEMPTED=${usersAttemptedCount}`);
 
@@ -362,7 +305,7 @@ export function createPurchaseLoadTest(config) {
     };
 
     return {
-      stdout: lines.join("\n") + "\n",
+      stdout: "",
       "stress-tests/.last-k6-summary.json": JSON.stringify(
         jsonSummary,
         null,

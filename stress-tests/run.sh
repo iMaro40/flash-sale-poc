@@ -140,7 +140,7 @@ cat > stress-tests/.last-verification.json <<EOF
 }
 EOF
 
-node stress-tests/report.js "$PROFILE"
+node stress-tests/report.js "$PROFILE" --record
 
 EXIT_CODE=0
 if [ "$K6_EXIT_CODE" -ne 0 ]; then

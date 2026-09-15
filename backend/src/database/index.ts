@@ -15,12 +15,14 @@ const connection = {
   database: process.env.POSTGRES_DB ?? "flash_sale",
 };
 
+export const DB_POOL_MAX = 10;
+
 export const database: Knex = knex({
   client: "pg",
   connection,
   pool: {
     min: 2,
-    max: 10, // Stress testing has shown increasing this number is not increasing DP performance.
+    max: DB_POOL_MAX, // Stress testing has shown increasing this number is not increasing DP performance.
   },
 });
 
@@ -60,6 +62,7 @@ pool.on("acquireFail", (eventId) => {
 });
 
 export interface DbPoolStats {
+  maxConnections: number;
   activeConnections: number;
   freeConnections: number;
   pendingAcquires: number;
@@ -67,6 +70,7 @@ export interface DbPoolStats {
 }
 
 export const getDbPoolStats = (): DbPoolStats => ({
+  maxConnections: DB_POOL_MAX,
   activeConnections: pool.numUsed(),
   freeConnections: pool.numFree(),
   pendingAcquires: pool.numPendingAcquires(),

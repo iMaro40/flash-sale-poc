@@ -2,13 +2,16 @@
 // Combines the k6 JSON summary with the Node/Postgres/Redis samples from monitor.sh into one report.
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const POOL_MAX = 10; // must match backend/src/database/index.ts pool.max
 
 const profile = process.argv[2] || "run";
+const shouldRecord = process.argv.includes("--record");
 const root = path.resolve(__dirname, "..");
 const k6SummaryPath = path.join(root, "stress-tests/.last-k6-summary.json");
 const monitorCsvPath = path.join(root, "stress-tests/.monitor-samples.csv");
+const resultsCsvPath = path.join(root, "stress-tests/results.csv");
 
 const k6Summary = JSON.parse(fs.readFileSync(k6SummaryPath, "utf8"));
 
@@ -31,6 +34,10 @@ const avg = (values) =>
     ? values.reduce((sum, value) => sum + value, 0) / values.length
     : 0;
 const peak = (values) => (values.length ? Math.max(...values) : 0);
+const csv = (value) => {
+  const text = value === undefined || value === null ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
 
 const nodeCpu = column(0);
 const nodeMemKb = column(1);
@@ -48,6 +55,107 @@ const lockWaitMaxSeconds = column(12);
 const workerActiveConnections = column(22);
 
 console.log("");
+
+if (shouldRecord) {
+  let workerConfig = {};
+  try {
+    workerConfig = JSON.parse(
+      execFileSync(
+        "curl",
+        ["-fsS", "http://localhost:3001/internal/db-pool-stats"],
+        { encoding: "utf8" },
+      ),
+    );
+  } catch {
+    console.error(
+      "Could not read worker runtime configuration for results.csv",
+    );
+  }
+
+  const integrity = integrityRow ?? [];
+  const resultHeaders = [
+    "recorded_at",
+    "profile",
+    "worker_prefetch",
+    "db_pool_max",
+    "duration_seconds",
+    "avg_accepted_per_second",
+    "avg_admit_latency_seconds",
+    "p95_admit_latency_seconds",
+    "p99_admit_latency_seconds",
+    "error_rate_percent",
+    "first_out_of_stock_seconds",
+    "node_cpu_avg_percent",
+    "node_cpu_peak_percent",
+    "node_memory_avg_mb",
+    "node_memory_peak_mb",
+    "db_active_queries_avg",
+    "worker_pool_connections_avg",
+    "worker_pool_connections_peak",
+    "row_lock_waiters_peak",
+    "pool_waiters_peak",
+    "avg_pool_acquire_wait_seconds",
+    "p95_pool_acquire_wait_seconds",
+    "peak_pool_acquire_wait_seconds",
+    "avg_row_lock_wait_seconds",
+    "p95_row_lock_wait_seconds",
+    "peak_row_lock_wait_seconds",
+    "redis_cpu_avg_percent",
+    "redis_memory_last_sample",
+    "final_stock",
+    "transactions_total",
+    "transactions_completed",
+    "unique_users_attempted",
+    "unique_users_completed",
+    "avg_db_completions_per_second",
+    "avg_completion_latency_seconds",
+    "p95_completion_latency_seconds",
+    "p99_completion_latency_seconds",
+  ];
+  const resultValues = [
+    new Date().toISOString(),
+    profile,
+    workerConfig.prefetch,
+    workerConfig.maxConnections,
+    k6Summary.durationSeconds,
+    k6Summary.avgAcceptedPerSecond,
+    k6Summary.avgLatencySeconds,
+    k6Summary.p95LatencySeconds,
+    k6Summary.p99LatencySeconds,
+    k6Summary.errorRatePercent,
+    k6Summary.firstOutOfStockResponseSeconds ?? k6Summary.stockRanOutAtSeconds,
+    avg(nodeCpu).toFixed(0),
+    peak(nodeCpu).toFixed(0),
+    (avg(nodeMemKb) / 1024).toFixed(0),
+    (peak(nodeMemKb) / 1024).toFixed(0),
+    avg(pgActive).toFixed(0),
+    avg(workerActiveConnections).toFixed(1),
+    peak(workerActiveConnections),
+    peak(pgLockWaits),
+    peak(peakPoolWaiters),
+    avg(poolAvgAcquireSeconds).toFixed(3),
+    avg(poolP95AcquireSeconds).toFixed(3),
+    peak(poolMaxAcquireSeconds).toFixed(3),
+    avg(lockWaitAvgSeconds).toFixed(3),
+    avg(lockWaitP95Seconds).toFixed(3),
+    peak(lockWaitMaxSeconds).toFixed(3),
+    avg(redisCpu).toFixed(0),
+    lastRedisMem,
+    integrity[13],
+    integrity[14],
+    integrity[15],
+    integrity[16],
+    integrity[17],
+    integrity[18],
+    integrity[19],
+    integrity[20],
+    integrity[21],
+  ];
+  if (!fs.existsSync(resultsCsvPath)) {
+    fs.writeFileSync(resultsCsvPath, `${resultHeaders.join(",")}\n`);
+  }
+  fs.appendFileSync(resultsCsvPath, `${resultValues.map(csv).join(",")}\n`);
+}
 console.log("FLASH SALE LOAD TEST");
 console.log("-".repeat(40));
 console.log("");
@@ -72,19 +180,15 @@ console.log(`Memory avg           ${(avg(nodeMemKb) / 1024).toFixed(0)}MB`);
 console.log(`Memory peak          ${(peak(nodeMemKb) / 1024).toFixed(0)}MB`);
 console.log("");
 console.log("POSTGRES");
-console.log(`Active sessions (DB avg) ${avg(pgActive).toFixed(0)}`);
-console.log(
-  `Worker pool use     ${avg(workerActiveConnections).toFixed(1)} avg / ${peak(workerActiveConnections)} peak of ${POOL_MAX}`,
-);
-console.log(`Row lock waiters (peak) ${peak(pgLockWaits)}`);
-console.log(`Pool waiters (peak)  ${peak(peakPoolWaiters)}`);
 console.log(
   `Avg pool acquire wait ${avg(poolAvgAcquireSeconds).toFixed(3)}s  (avg of samples; latest 2000 acquisitions)`,
 );
 console.log(
   `P95 pool acquire wait ${avg(poolP95AcquireSeconds).toFixed(3)}s  (avg of samples; latest 2000 acquisitions)`,
 );
-console.log(`Peak pool acquire wait ${peak(poolMaxAcquireSeconds).toFixed(3)}s`);
+console.log(
+  `Peak pool acquire wait ${peak(poolMaxAcquireSeconds).toFixed(3)}s`,
+);
 console.log(
   `Avg row lock wait    ${avg(lockWaitAvgSeconds).toFixed(3)}s  (avg of samples; latest 2000 locks)`,
 );

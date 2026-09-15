@@ -28,6 +28,7 @@ const startMetricsServer = (): void => {
     response.end(
       JSON.stringify({
         ...getDbPoolStats(),
+        prefetch: MAX_CONCURRENT_DB_WRITES,
         stockDecrementLockWait: getStockDecrementLockWaitStats(),
       }),
     );
