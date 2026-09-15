@@ -132,13 +132,17 @@ The tests were done with:
 20s sustained load
 5s ramp-down
 
-The number of virtual users and stock are proportional to the test profiles: light, medium or heavy.
+The number of virtual users and stock are proportional to the test profiles: light, medium or heavy. We tested with prefetch 0, meaning RabbitMQ is unbound, and prefetch 500, where RabbitMQ can only have 500 unacked messages at a time.
 
-Admission throughput is the rate at which HTTP requests were accepted and queued; completion throughput is the rate at which purchases were completed in PostgreSQL.
+# Prefetch: 500
 
-## Analysis
+| Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
+| --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
+| 1   | light   |        1,732.2 |     0.260 |               514.7 |         46.246 |         46.943 |          36% |           93% |             126 |              186 |           20% |         21.34 MB |            2.245 |             0.106 |
+| 2   | medium  |        1,756.4 |     1.302 |               540.5 |         48.680 |         49.062 |          36% |           79% |             153 |              284 |           20% |         23.79 MB |            2.232 |             0.092 |
+| 3   | heavy   |        1,286.0 |     3.051 |               579.0 |         48.369 |         48.581 |          22% |           80% |             148 |              266 |           18% |         26.70 MB |            2.255 |             0.096 |
 
-### Prefetch: 0
+# Prefetch: 0
 
 Selected metrics from the latest three runs. Times are in seconds, rates are per second, memory is in MB, and CPU values are percentages.
 
@@ -148,10 +152,16 @@ Selected metrics from the latest three runs. Times are in seconds, rates are per
 | 2   | medium  |        1,725.6 |     0.730 |               547.9 |         48.178 |         48.494 |          31% |           94% |             150 |              285 |           18% |         52.38 MB |           36.230 |             0.096 |
 | 3   | heavy   |        1,511.0 |     3.966 |               606.4 |         54.549 |         54.666 |          24% |           72% |             144 |              323 |           17% |         57.26 MB |           41.772 |             0.089 |
 
-### Prefetch: 500
+## Analysis
 
-| Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | light | 1,732.2 | 0.260 | 514.7 | 46.246 | 46.943 | 36% | 93% | 126 | 186 | 20% | 21.34 MB | 2.245 | 0.106 |
-| 2 | medium | 1,756.4 | 1.302 | 540.5 | 48.680 | 49.062 | 36% | 79% | 153 | 284 | 20% | 23.79 MB | 2.232 | 0.092 |
-| 3 | heavy | 1,286.0 | 3.051 | 579.0 | 48.369 | 48.581 | 22% | 80% | 148 | 266 | 18% | 26.70 MB | 2.255 | 0.096 |
+Across these runs, completion throughput remains around 500–600 purchases per second while heavier load increases latency.We are able to accept/reject requests very fast, so the bottleneck then is the rest of the workflow which is completing the purchase.
+
+We tested to see if RabbitMQ is "too slow" by making the prefetch unbound (Prefetch: 0). Overall performance did not increase. If anything, it got slightly worse. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time
+
+With unlimited prefetch (Prefetch:0), substantial waiting accumulates in the worker’s database connection pool (see P95 pool acquire of Prefetch 0).
+
+Firstly, testing shows that the database always converged to a correct state towards the end of the test (i.e. stock 0 for product, and matching number of transactions, no duplicate transactions, only one product poorchase per user).
+
+P99 latency degrades over heavier loads. Looking at the P95 pool acquire of Prefetch: 500, we can see that the main bottlenek is waiting for a connection pool from the database. I tested increasing the connection pool and it always simply maxed out everytime as well. This means that the database is simply not fast enough to handled heavier loads. To scale the system out, the first recommendation would be to scale out writes with the database. For example, a common technique would be to shard out the database. We could have 3 DB instances that each hold a number of stock, and requests could now be routed to multiple databases.
+
+What is interesting note is that Prefetch: 500 has better P99 latency. This shows that controlling the rate at which the database receives messages can improve performance because there is not an unbounded thundering herd waiting on the database. However, a
