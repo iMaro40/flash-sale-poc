@@ -7,7 +7,7 @@ import { transactionService } from "../transactions/service";
 import { reconcileStalePendingTransactions } from "./reconcile-stock-worker-handler";
 
 const RECONCILIATION_INTERVAL_MS = 60_000;
-const PENDING_TRANSACTION_MAX_AGE_MS = 5 * 60_000;
+const PENDING_TRANSACTION_MAX_AGE_MS = 10 * 60_000;
 let isReconciling = false;
 
 const reconcileStock = async (): Promise<void> => {

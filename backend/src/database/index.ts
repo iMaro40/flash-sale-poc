@@ -2,7 +2,10 @@ import "../env";
 
 import { knex, type Knex } from "knex";
 
-import { createDurationSampler, type DurationStats } from "../utils/duration-sampler";
+import {
+  createDurationSampler,
+  type DurationStats,
+} from "../utils/duration-sampler";
 
 const connection = {
   host: process.env.POSTGRES_HOST ?? "localhost",
@@ -17,7 +20,7 @@ export const database: Knex = knex({
   connection,
   pool: {
     min: 2,
-    max: 10,
+    max: 10, // Stress testing has shown increasing this number is not increasing DP performance.
   },
 });
 

@@ -58,7 +58,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_URL: amqp://rabbitmq:5672
-      PURCHASE_WORKER_PREFETCH: 0
+      PURCHASE_WORKER_PREFETCH: 1000
       PURCHASE_WORKER_METRICS_PORT: 3001
     ports:
       - "3001:3001"
