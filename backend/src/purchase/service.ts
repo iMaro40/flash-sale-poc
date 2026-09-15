@@ -101,6 +101,8 @@ export class PurchaseService {
     const transactionRepository: TransactionRepository =
       new TransactionRepository(trx);
     const productRepository: ProductRepository = new ProductRepository(trx);
+    // Lock the transaction row so duplicate deliveries or retries
+    // cannot decrement stock more than once.
     const transaction = await transactionRepository.getTransactionById(
       transactionId,
       true,
