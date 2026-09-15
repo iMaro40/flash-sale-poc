@@ -8,9 +8,24 @@ PROFILE="${1:-heavy}"
 if [ $# -gt 0 ]; then shift; fi
 
 # Start every run from a clean slate so results/integrity checks aren't polluted by prior runs.
-echo "Dropping all data before stress test..."
-docker exec flash-sale-postgres psql -U postgres -d flash_sale -q \
-  -c "TRUNCATE TABLE transactions, products, flash_sales RESTART IDENTITY CASCADE;"
+echo "Truncating all application tables before stress test..."
+docker exec -i flash-sale-postgres psql -U postgres -d flash_sale -q -v ON_ERROR_STOP=1 <<'SQL'
+DO $$
+DECLARE
+  tables text;
+BEGIN
+  -- Keep migration bookkeeping so subsequent migrations still know what has run.
+  SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
+  INTO tables
+  FROM pg_tables
+  WHERE schemaname = 'public'
+    AND tablename NOT IN ('knex_migrations', 'knex_migrations_lock');
+
+  IF tables IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE ' || tables || ' RESTART IDENTITY CASCADE';
+  END IF;
+END $$;
+SQL
 docker exec flash-sale-redis redis-cli FLUSHDB >/dev/null
 
 # Cumulative Redis counters (calls=, keyspace hits/misses) so we can diff before/after the run.

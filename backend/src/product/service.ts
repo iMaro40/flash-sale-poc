@@ -48,7 +48,7 @@ export class ProductService {
     if (product) {
       await this.productCache.setProduct(product);
     }
-    if (!cachedInventory) {
+    if (cachedInventory === undefined) {
       await this.productCache.setStockByProductId(
         productId,
         product?.stock ?? 0,

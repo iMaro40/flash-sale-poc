@@ -65,6 +65,9 @@ describe("ProductCache", () => {
         arguments: [expect.any(String), "idem-1"],
       },
     );
+    const script = redis.eval.mock.calls[0][0] as string;
+    expect(script).toContain("redis.call('SET', reservationKey, '1')");
+    expect(script).not.toMatch(/['"](?:PX|EX|PXAT|EXAT)['"]/);
   });
 
   it("reports when the product stock key is missing", async () => {

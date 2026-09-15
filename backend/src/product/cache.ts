@@ -49,7 +49,10 @@ export class ProductCache {
     productId: string,
     stock: number,
   ): Promise<void> {
-    await this.redis.set(redisKeys.productStock(productId), stock.toString());
+    // NX: only initializes stock, never overwrites a value a concurrent reservation already changed.
+    await this.redis.set(redisKeys.productStock(productId), stock.toString(), {
+      NX: true,
+    });
   }
 
   public async getStockByProductId(
@@ -125,16 +128,14 @@ export class ProductCache {
 
       local newStock = redis.call('DECR', stockKey)
 
-      -- Mark the buyer and reservation as pending. Both expire if the purchase
-      -- never reaches the completion or release step.
+      -- Retain pending markers until completion or release so reconciliation
+      -- can return reserved stock even when processing takes longer than two minutes.
       redis.call(
         'SET',
         buyerKey,
-        'pending:' .. idempotencyKey,
-        'PX',
-        120000
+        'pending:' .. idempotencyKey
       )
-      redis.call('SET', reservationKey, '1', 'EX', 120)
+      redis.call('SET', reservationKey, '1')
 
       return {0, newStock}
     `;

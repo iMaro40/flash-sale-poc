@@ -60,7 +60,33 @@ export class PurchaseService {
       return PurchaseAcceptanceStatus.ALREADY_COMPLETED;
     }
 
-    return this.enqueuePurchase(input);
+    try {
+      return await this.enqueuePurchase(input);
+    } catch (error) {
+      await this.handleEnqueueFailure(error, input);
+      throw error;
+    }
+  }
+
+  // A definitive DB failure (e.g. constraint violation) never left a transaction row behind,
+  // so the reconciler can't find it; release the reservation now instead of stranding it.
+  private async handleEnqueueFailure(
+    error: unknown,
+    input: PurchaseProductInput,
+  ): Promise<void> {
+    if (!this.isDefinitiveRollback(error)) {
+      console.error(
+        "Enqueue outcome is unknown. Need to reconcile inventory.",
+        {
+          productId: input.productId,
+          idempotencyKey: input.idempotencyKey,
+          error,
+        },
+      );
+      return;
+    }
+
+    await this.releaseRolledBackReservation(input);
   }
 
   private async enqueuePurchase(
@@ -73,6 +99,8 @@ export class PurchaseService {
       transactionId: transaction.id,
       input,
     };
+    // IMPORTANT: Best pattern here is to use transactional outbox so that creating a pending transaction + publishing can be treated as atomic
+    // Did not end up implementing this for this assignment. For this assignment, just assume publish always succeeds
     channel.sendToQueue(
       PURCHASE_QUEUE,
       Buffer.from(JSON.stringify(queuedPurchase)),

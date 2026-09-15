@@ -1,5 +1,5 @@
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { app } from "../../src/app";
 import { database } from "../../src/database";
@@ -42,12 +42,14 @@ describe("purchase routes", () => {
     await connectRabbitMQ();
   });
 
-  afterAll(async () => {
-    await closeRabbitMQ();
+  // The app only allows one product to exist at a time, so each test's fixtures
+  // must be torn down before the next test tries to create its own product.
+  afterEach(async () => {
     if (createdTransactionIds.length > 0) {
       await database("transactions")
         .whereIn("id", createdTransactionIds)
         .delete();
+      createdTransactionIds.length = 0;
     }
 
     if (createdProductIds.length > 0) {
@@ -58,6 +60,7 @@ describe("purchase routes", () => {
 
     if (createdFlashSaleIds.length > 0) {
       await database("flash_sales").whereIn("id", createdFlashSaleIds).delete();
+      createdFlashSaleIds.length = 0;
     }
 
     if (createdProductIds.length > 0) {
@@ -65,8 +68,12 @@ describe("purchase routes", () => {
         .whereIn("product_id", createdProductIds)
         .delete();
       await database("products").whereIn("id", createdProductIds).delete();
+      createdProductIds.length = 0;
     }
+  });
 
+  afterAll(async () => {
+    await closeRabbitMQ();
     await database.destroy();
     await closeRedis();
   });
