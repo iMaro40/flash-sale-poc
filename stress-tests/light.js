@@ -7,9 +7,9 @@ const test = createPurchaseLoadTest({
   initialStock: Number(__ENV.INITIAL_STOCK || 35000),
   doublePurchaseRate: Number(__ENV.DOUBLE_PURCHASE_RATE || 0.02),
   stages: [
-    { duration: "8s", target: 100 }, // gradual increase
-    { duration: "4s", target: 300 }, // small spike
-    { duration: "13s", target: 300 }, // sustained (stock runs out ~3s before this ends)
+    { duration: "10s", target: 100 }, // gradual increase
+    { duration: "5s", target: 300 }, // small spike
+    { duration: "20s", target: 300 }, // sustained
     { duration: "5s", target: 0 }, // ramp down
   ],
 });

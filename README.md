@@ -121,3 +121,15 @@ The API returns `202 Accepted` after submitting a purchase for processing. The f
 1. Unique constraints in Postgres are used ensure our core requirements. (e.g. no transactions for same idempotency key, no user can make more than one purchase for the same product)
 2. Row lock to prevent retries from potentially deducting stock twice
 3. Robust Lua script in Redis to ensure that only valid purchase requests go through.
+
+## Stress Test Results
+
+Admission throughput is the rate at which HTTP requests were accepted and queued; completion throughput is the rate at which purchases were completed in PostgreSQL.
+
+| Run | Profile | Duration (s) | Accepted/s | Completed/s | P95 completion (s) | P99 completion (s) |
+| --- | ------- | -----------: | ---------: | ----------: | -----------------: | -----------------: |
+| 1   | light   |         30.1 |    2,056.4 |       660.4 |             34.680 |             34.993 |
+| 2   | medium  |         33.1 |    1,866.8 |       597.0 |             42.504 |             43.388 |
+| 3   | heavy   |         40.1 |    1,649.0 |       670.6 |             49.333 |             49.721 |
+
+Firstly, important to note is that the database all ended up in a correct state no matter the load (i.e. stock for product is 0, and correct number of transactions, and only one transaction per user). P99 increases per load
