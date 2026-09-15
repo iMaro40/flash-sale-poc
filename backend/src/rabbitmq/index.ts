@@ -2,6 +2,8 @@ import "../env";
 
 import amqplib, { type Channel, type ChannelModel } from "amqplib";
 
+import { assertPurchaseQueue } from "./queues";
+
 const url = process.env.RABBITMQ_URL ?? "amqp://localhost:5672";
 
 let connection: ChannelModel | undefined;
@@ -13,6 +15,7 @@ export const connectRabbitMQ = async (): Promise<void> => {
     console.error("RabbitMQ connection error", error);
   });
   publishChannel = await connection.createChannel();
+  await assertPurchaseQueue(publishChannel);
 };
 
 // Dedicated channel for publishing from the API process; consumers create their own channel(s).

@@ -237,6 +237,85 @@ describe("purchase routes", () => {
     }
   });
 
+  it("allows a user to repurchase the same product after their earlier transaction was cancelled", async () => {
+    const productResponse = await request(app)
+      .post("/products")
+      .send({ name: `Cancelled Reservation Product ${Date.now()}`, stock: 2 })
+      .expect(201);
+    const product = productResponse.body as ProductResponse;
+    createdProductIds.push(product.id);
+
+    const flashSaleResponse = await request(app)
+      .post("/flash-sales")
+      .send({
+        productId: product.id,
+        startTime: new Date(Date.now() - 60_000).toISOString(),
+        endTime: new Date(Date.now() + 60 * 60_000).toISOString(),
+      })
+      .expect(201);
+    createdFlashSaleIds.push(flashSaleResponse.body.flashSaleId);
+
+    const userId = "77777777-7777-7777-7777-777777777777";
+    const firstIdempotencyKey = `integration-cancelled-first-${Date.now()}`;
+    await request(app)
+      .post("/purchases")
+      .send({
+        productId: product.id,
+        userId,
+        idempotencyKey: firstIdempotencyKey,
+      })
+      .expect(202);
+
+    const firstTransaction = await database("transactions")
+      .where({ user_id: userId, product_id: product.id })
+      .first("id");
+    if (!firstTransaction) {
+      throw new Error("Expected a pending transaction to have been created");
+    }
+    createdTransactionIds.push(firstTransaction.id);
+
+    // Simulate the reconciler cancelling a stalled pending transaction (which
+    // also releases the Redis reservation) instead of it completing, so the
+    // unique index must not block the retry below.
+    await purchaseService.cancelPurchase(firstTransaction.id, {
+      productId: product.id,
+      userId,
+      idempotencyKey: firstIdempotencyKey,
+    });
+    // Drain the now-stale queued message so it doesn't get consumed ahead of
+    // the retry's message below (the worker discards it as already cancelled).
+    await processNextPurchaseMessage();
+
+    const response = await request(app)
+      .post("/purchases")
+      .send({
+        productId: product.id,
+        userId,
+        idempotencyKey: `integration-cancelled-retry-${Date.now()}`,
+      })
+      .expect(202);
+
+    expect(response.body).toEqual({ message: "Purchase accepted, processing" });
+    await processNextPurchaseMessage();
+
+    const transactionResponse = await request(app)
+      .get(`/transactions/${userId}/${product.id}`)
+      .expect(200);
+
+    expect(transactionResponse.body).toEqual({
+      code: "TRANSACTION_COMPLETE",
+      message: "Product purchased",
+    });
+
+    const secondTransaction = await database("transactions")
+      .where({ user_id: userId, product_id: product.id })
+      .andWhere("id", "<>", firstTransaction.id)
+      .first("id");
+    if (secondTransaction) {
+      createdTransactionIds.push(secondTransaction.id);
+    }
+  });
+
   it("rejects invalid purchase input", async () => {
     const response = await request(app)
       .post("/purchases")

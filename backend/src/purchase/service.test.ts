@@ -4,9 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActiveFlashSaleNotFoundError } from "../errors/active-flash-sale-not-found";
 import { OutOfStockError } from "../errors/out-of-stock";
+import { ProductAlreadyPurchasedError } from "../errors/product-already-purchased";
+import { RedisUnavailableError } from "../errors/redis-unavailable";
+import type { FlashSaleRepository } from "../flash-sale/repository";
 import type { FlashSaleService } from "../flash-sale/service";
 import { StockReservationStatus } from "../product/dto/reserve-stock";
+import type { ProductRepository } from "../product/repository";
 import type { ProductService } from "../product/service";
+import { TransactionStatus } from "../transactions/model";
 import type { TransactionRepository } from "../transactions/repository";
 import { PurchaseAcceptanceStatus } from "./dto/purchase-acceptance";
 import type { PurchaseProductInput } from "./dto/purchase-product";
@@ -29,6 +34,10 @@ const createService = (): {
   findActiveFlashSaleByProductId: ReturnType<typeof vi.fn>;
   sendToQueue: ReturnType<typeof vi.fn>;
   createPendingTransaction: ReturnType<typeof vi.fn>;
+  getTransactionByIdempotencyKeyAndUserId: ReturnType<typeof vi.fn>;
+  getActiveTransactionByUserIdAndProductId: ReturnType<typeof vi.fn>;
+  findProductById: ReturnType<typeof vi.fn>;
+  findActiveFlashSaleByProductIdRepository: ReturnType<typeof vi.fn>;
 } => {
   const transaction = vi.fn();
   const releaseStockByProductId = vi.fn();
@@ -39,6 +48,10 @@ const createService = (): {
   const createPendingTransaction = vi.fn().mockResolvedValue({
     id: "transaction-1",
   });
+  const getTransactionByIdempotencyKeyAndUserId = vi.fn();
+  const getActiveTransactionByUserIdAndProductId = vi.fn();
+  const findProductById = vi.fn();
+  const findActiveFlashSaleByProductIdRepository = vi.fn();
   const assertQueue = vi.fn().mockResolvedValue(undefined);
   const assertExchange = vi.fn().mockResolvedValue(undefined);
   const bindQueue = vi.fn().mockResolvedValue(undefined);
@@ -60,7 +73,15 @@ const createService = (): {
       findActiveFlashSaleByProductId,
     } as unknown as FlashSaleService,
     () => channel,
-    { createPendingTransaction } as unknown as TransactionRepository,
+    {
+      createPendingTransaction,
+      getTransactionByIdempotencyKeyAndUserId,
+      getActiveTransactionByUserIdAndProductId,
+    } as unknown as TransactionRepository,
+    { findById: findProductById } as unknown as ProductRepository,
+    {
+      findActiveFlashSaleByProductId: findActiveFlashSaleByProductIdRepository,
+    } as unknown as FlashSaleRepository,
   );
 
   return {
@@ -72,6 +93,10 @@ const createService = (): {
     findActiveFlashSaleByProductId,
     sendToQueue,
     createPendingTransaction,
+    getTransactionByIdempotencyKeyAndUserId,
+    getActiveTransactionByUserIdAndProductId,
+    findProductById,
+    findActiveFlashSaleByProductIdRepository,
   };
 };
 
@@ -129,7 +154,9 @@ describe("PurchaseService.purchaseProduct", () => {
       sendToQueue,
       reserveStockByProductId,
       findActiveFlashSaleByProductId,
+      findProductById,
     } = createService();
+    findProductById.mockResolvedValue({ id: input.productId, stock: 1 });
     reserveStockByProductId
       .mockResolvedValueOnce({
         status: StockReservationStatus.FLASH_SALE_CACHE_MISSING,
@@ -160,7 +187,9 @@ describe("PurchaseService.purchaseProduct", () => {
       sendToQueue,
       reserveStockByProductId,
       findActiveFlashSaleByProductId,
+      findProductById,
     } = createService();
+    findProductById.mockResolvedValue({ id: input.productId, stock: 1 });
     reserveStockByProductId.mockResolvedValue({
       status: StockReservationStatus.FLASH_SALE_CACHE_MISSING,
     });
@@ -168,6 +197,76 @@ describe("PurchaseService.purchaseProduct", () => {
 
     await expect(service.purchaseProduct(input)).rejects.toBeInstanceOf(
       ActiveFlashSaleNotFoundError,
+    );
+    expect(sendToQueue).not.toHaveBeenCalled();
+  });
+
+  it("allows a repurchase via the Redis fallback when the user's only prior transaction was cancelled", async () => {
+    const {
+      service,
+      sendToQueue,
+      reserveStockByProductId,
+      findProductById,
+      findActiveFlashSaleByProductIdRepository,
+      getTransactionByIdempotencyKeyAndUserId,
+      getActiveTransactionByUserIdAndProductId,
+      createPendingTransaction,
+    } = createService();
+    reserveStockByProductId.mockRejectedValue(
+      new RedisUnavailableError(new Error("redis down")),
+    );
+    findProductById.mockResolvedValue({ id: input.productId, stock: 1 });
+    findActiveFlashSaleByProductIdRepository.mockResolvedValue({
+      id: "sale-1",
+      productId: input.productId,
+      startTime: new Date(Date.now() - 60_000),
+      endTime: new Date(Date.now() + 60_000),
+    });
+    // Cancelled transactions are excluded by the repository query, so a prior
+    // cancellation for this user/product surfaces as no active transaction.
+    getTransactionByIdempotencyKeyAndUserId.mockResolvedValue(undefined);
+    getActiveTransactionByUserIdAndProductId.mockResolvedValue(undefined);
+
+    await expect(service.purchaseProduct(input)).resolves.toBe(
+      PurchaseAcceptanceStatus.ACCEPTED,
+    );
+    expect(createPendingTransaction).toHaveBeenCalledWith(input);
+    expect(sendToQueue).toHaveBeenCalled();
+  });
+
+  it("rejects the Redis fallback when an active (non-cancelled) transaction already exists", async () => {
+    const {
+      service,
+      sendToQueue,
+      reserveStockByProductId,
+      findProductById,
+      findActiveFlashSaleByProductIdRepository,
+      getTransactionByIdempotencyKeyAndUserId,
+      getActiveTransactionByUserIdAndProductId,
+    } = createService();
+    reserveStockByProductId.mockRejectedValue(
+      new RedisUnavailableError(new Error("redis down")),
+    );
+    findProductById.mockResolvedValue({ id: input.productId, stock: 1 });
+    findActiveFlashSaleByProductIdRepository.mockResolvedValue({
+      id: "sale-1",
+      productId: input.productId,
+      startTime: new Date(Date.now() - 60_000),
+      endTime: new Date(Date.now() + 60_000),
+    });
+    getTransactionByIdempotencyKeyAndUserId.mockResolvedValue(undefined);
+    getActiveTransactionByUserIdAndProductId.mockResolvedValue({
+      id: "transaction-existing",
+      idempotencyKey: "other-key",
+      productId: input.productId,
+      userId: input.userId,
+      status: TransactionStatus.COMPLETED,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await expect(service.purchaseProduct(input)).rejects.toBeInstanceOf(
+      ProductAlreadyPurchasedError,
     );
     expect(sendToQueue).not.toHaveBeenCalled();
   });
