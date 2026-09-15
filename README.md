@@ -66,22 +66,19 @@ pnpm test:integration:setup
 
 ```mermaid
 flowchart LR
-    User[Buyer] --> Frontend[React Frontend]
-    Frontend -->|Purchase request| Gateway[Rate-limit Middleware]
-    Gateway --> API[Node.js / Express Purchase Service]
-    API <-->|Atomic stock reservation| Redis[(Redis)]
-    API -->|Create PENDING transaction| DB[(PostgreSQL)]
-    API -->|Queue purchase| Queue[RabbitMQ Purchase Queue]
-    API -->|202 Accepted| Frontend
-    Frontend -->|Poll transaction status| API
-    API -->|Read transaction status| DB
-    Queue --> Consumer[Purchase Consumer]
-    Consumer -->|Complete purchase in a DB transaction| DB
-    Consumer -->|Complete or release reservation| Redis
-    Queue -->|Rejected messages via dead-letter exchange| DLQ[Dead-letter Queue]
-    Reconciler[Reconciliation Worker] -->|Cancel stale PENDING transactions| DB
-    Reconciler -->|Release cancelled reservations| Redis
+    Frontend[React Frontend] --> API[Node.js API + Rate Limiter]
+    API -->|Reserve stock| Redis[(Redis)]
+    API -->|Create pending purchase| DB[(PostgreSQL)]
+    API --> Queue[RabbitMQ]
+    Queue --> Worker[Purchase Worker]
+    Worker -->|Complete purchase| DB
+    Worker -->|Update reservation| Redis
+    Queue -->|Failed messages| DLQ[Dead-letter Queue]
+    Reconciler[Reconciliation Worker] -->|Cancel stale purchases| DB
+    Reconciler -->|Release reservations| Redis
 ```
+
+The API returns `202 Accepted` after submitting a purchase for processing. The frontend polls for its final status. The purchase flow below explains transaction locking, retries, and reservation handling.
 
 ### Components and Responsibilities
 
@@ -90,7 +87,7 @@ flowchart LR
 | React frontend           | Submits purchases and polls transaction status every three seconds because purchase completion is asynchronous.                                                                                                                                                                                                                                                                                                                                                                         |
 | Gateway / rate limiter   | Redis-backed, per-IP rate limiting implemented as Express middleware. No load balaner for this assignment because stress tests revealed that the first main bottleneck is the DB.                                                                                                                                                                                                                                                                                                       |
 | Node.js purchase service | Reserves stock in Redis, creates a pending transaction in PostgreSQL, and publishes the purchase to RabbitMQ. Immediately acceptance without waiting for purchase completion.                                                                                                                                                                                                                                                                                                           |
-| Redis                    | Uses an atomic Lua script to quickly check sale eligibility, buyer/idempotency state, and available stock, then decrement stock and record the reservation. This lets invalid purchase requests be quickly rejected without ever hitting the DB. Now stock management becomes more complicated, but the system will be very performant.                                                                                                                                                 |
+| Redis                    | Fast-admission control layer. Uses an atomic Lua script to quickly check sale eligibility, buyer/idempotency state, and available stock, then decrement stock and record the reservation. This lets invalid purchase requests be quickly rejected without ever hitting the DB. Now stock management becomes more complicated, but the system will be very performant.                                                                                                                   |
 | RabbitMQ                 | Buffers accepted purchases in the durable `purchase.process` queue. Allows us to control the rate of requests coming in to the DB. The tradeoff is now we need a separate reconciliation worker to account for potential failed messages or unexpected RabbitMQ failures that leave a transaction stuck in pending. Another tradeoff is user experience: users cannot immediately know their transaction status and must poll or something to find out what happened to their requests. |
 | PostgreSQL               | Relational database since we have a bunch of relational data models. Stores transaction status and product stock. Unique constraints, seralized stock updates, and transaction row locking ensure correctness, will always ensure system correctness as the "last line of defense".                                                                                                                                                                                                     |
 | Dead-letter queue        | Receives rejected messages through `purchase.process.dlx` into `purchase.process.dlq` for failure visibility.                                                                                                                                                                                                                                                                                                                                                                           |
@@ -115,11 +112,12 @@ flowchart LR
 
 1. Separate reconciliation worker created to ensure stock integrity in case of RabbitMQ failures or other failures
 2. RabbitMQ controls the rate of which Postgres receives requests. This ensures Postgres does not receive requests beyond its capacity.
-3. Purchase requests will still go through even if Redis is down, but note that this is not ideal since all reads now also happen on Postgres.
+3. Database fallback in case Redis is down. However do note, that it is not configured for complete atomicity like Redis to make it at least a bit more performant. The down side is that excess requests might go through and the database will have to reject them later on
 4. Retries are configured for retryable errors
+5. Release stock if DB transaction rolls back
 
 ### Concurrency Control
 
-1. Unique constraints in Postgres are used ensure system correctness no matter what. (e.g. no transactions for same idempotency key, no user can make more than one purchase for the same product)
+1. Unique constraints in Postgres are used ensure our core requirements. (e.g. no transactions for same idempotency key, no user can make more than one purchase for the same product)
 2. Row lock to prevent retries from potentially deducting stock twice
 3. Robust Lua script in Redis to ensure that only valid purchase requests go through.
