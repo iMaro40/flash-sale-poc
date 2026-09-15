@@ -62,6 +62,8 @@ export class TransactionRepository {
     return transaction ? this.mapToTransaction(transaction) : undefined;
   }
 
+  // Multiple CANCELLED rows can now exist for the same user/product, so order
+  // by recency to return the most relevant one for display purposes.
   public async getTransactionByUserIdAndProductId(
     userId: string,
     productId: string,
@@ -69,6 +71,26 @@ export class TransactionRepository {
     const transaction = await this.db<TransactionDbRow>("transactions")
       .where("user_id", userId)
       .andWhere("product_id", productId)
+      .orderBy("created_at", "desc")
+      .orderBy("id", "desc")
+      .first();
+
+    return transaction ? this.mapToTransaction(transaction) : undefined;
+  }
+
+  // Only PENDING/COMPLETED transactions should block a new purchase attempt;
+  // CANCELLED transactions must not prevent the user from retrying.
+  public async getActiveTransactionByUserIdAndProductId(
+    userId: string,
+    productId: string,
+  ): Promise<Transaction | undefined> {
+    const transaction = await this.db<TransactionDbRow>("transactions")
+      .where("user_id", userId)
+      .andWhere("product_id", productId)
+      .whereIn("status", [
+        TransactionStatus.PENDING,
+        TransactionStatus.COMPLETED,
+      ])
       .first();
 
     return transaction ? this.mapToTransaction(transaction) : undefined;

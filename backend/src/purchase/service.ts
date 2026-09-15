@@ -115,6 +115,11 @@ export class PurchaseService {
   private async purchaseUsingDatabaseFallback(
     input: PurchaseProductInput,
   ): Promise<PurchaseAcceptanceStatus> {
+    const product = await this.productRepository.findById(input.productId);
+    if (!product) {
+      throw new ProductNotFoundError(input.productId);
+    }
+
     const activeFlashSale =
       await this.flashSaleRepository.findActiveFlashSaleByProductId(
         input.productId,
@@ -124,10 +129,6 @@ export class PurchaseService {
       throw new ActiveFlashSaleNotFoundError(input.productId);
     }
 
-    const product = await this.productRepository.findById(input.productId);
-    if (!product) {
-      throw new ProductNotFoundError(input.productId);
-    }
     if (product.stock <= 0) {
       throw new OutOfStockError(input.productId);
     }
@@ -146,7 +147,7 @@ export class PurchaseService {
     }
 
     const existingByProduct =
-      await this.transactionRepository.getTransactionByUserIdAndProductId(
+      await this.transactionRepository.getActiveTransactionByUserIdAndProductId(
         input.userId,
         input.productId,
       );
@@ -185,7 +186,7 @@ export class PurchaseService {
     }
 
     const existingByProduct =
-      await this.transactionRepository.getTransactionByUserIdAndProductId(
+      await this.transactionRepository.getActiveTransactionByUserIdAndProductId(
         input.userId,
         input.productId,
       );
@@ -336,6 +337,11 @@ export class PurchaseService {
     if (
       reservation.status === StockReservationStatus.FLASH_SALE_CACHE_MISSING
     ) {
+      const product = await this.productRepository.findById(input.productId);
+      if (!product) {
+        throw new ProductNotFoundError(input.productId);
+      }
+
       // Cache flash sale data and try to reserve again
       const activeFlashSale =
         await this.flashSaleService.findActiveFlashSaleByProductId(

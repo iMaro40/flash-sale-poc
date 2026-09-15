@@ -75,7 +75,7 @@ export class ProductService {
     // Cache stock data and try to reserve again once
     const product = await this.productRepository.findById(input.productId);
     if (!product) {
-      return reservation;
+      throw new RedisUnavailableError(new Error("Product not found"));
     }
 
     await this.productCache.setProduct(product);
