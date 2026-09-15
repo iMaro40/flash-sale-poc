@@ -105,22 +105,21 @@ flowchart LR
 5. The consumer locks the transaction row with `FOR UPDATE`. A `COMPLETED` transaction is treated as already processed; a `CANCELLED` transaction is rejected. Otherwise, it decrements database stock and marks the transaction `COMPLETED` in the same database transaction.
 6. After the database commit, the service attempts to mark the Redis reservation as completed, and the consumer acknowledges the message. The frontend discovers the final status through polling.
 
-### Failure Handling and Reconciliation
+### High Throughput & Scalability
 
-The consumer makes up to three attempts for recognized transient PostgreSQL and network errors, using exponential backoff with jitter. If processing fails, it attempts to cancel the pending purchase and rejects the message without requeueing it, sending it to the dead-letter queue. Definitive database rollbacks also trigger an attempt to release the Redis reservation; uncertain database outcomes are logged for reconciliation.
+1. Using Redis, we can quickly accept and reject transactions without ever hitting Postgres.
+2. Using RabbitMQ, we can easily increase our prefetch and number of consumers and if we want to process more requests.
+3. No load balancer was used in this assignment since we are able to quickly process HTTP requests, but this is definitely easily implementable if the servers start becoming the bottleneck.
 
-Reconciliation handles stale pending transactions, including those left behind by publication or worker failures. Cancellation updates only transactions still marked `PENDING`, and stock release is attempted only when that update succeeds. Completion holds a row lock while checking status and updating database stock, so completion and cancellation cannot both succeed for the same purchase. A delayed consumer cannot complete a purchase that reconciliation has already cancelled.
+### Robustness & Fault Tolerance
 
-Redis stock release is atomic and checks that the reservation belongs to the matching pending request before incrementing stock and removing its markers.
+1. Separate reconciliation worker created to ensure stock integrity in case of RabbitMQ failures or other failures
+2. RabbitMQ controls the rate of which Postgres receives requests. This ensures Postgres does not receive requests beyond its capacity.
+3. Purchase requests will still go through even if Redis is down, but note that this is not ideal since all reads now also happen on Postgres.
+4. Retries are configured for retryable errors
 
-### Throughput and Deployment
+### Concurrency Control
 
-The design uses Redis for fast reservation and rejection, then RabbitMQ to buffer bursts before purchase completion writes reach PostgreSQL. Worker prefetch is configured through `PURCHASE_WORKER_PREFETCH`; a positive value bounds outstanding messages per worker, while `0` means unlimited. Because the consumer starts each delivered message asynchronously and acknowledges it after processing, a positive prefetch value also bounds concurrent purchase processing in that worker. Multiple worker instances increase aggregate concurrency.
-
-The current deployment omits a load balancer. The design rationale is that stress testing identified the database as the primary bottleneck, so the queue and worker settings target database pressure. Accepted requests still create pending transaction rows synchronously; the queue buffers the subsequent purchase completion work.
-
-### Current Implementation Limits
-
-- Redis pending buyer and reservation markers expire after two minutes, but reconciliation cancels transactions older than five minutes. Since release requires those markers to exist, reconciliation can cancel an old transaction without restoring its Redis stock. Marker expiry itself does not increment stock.
-- Cancellation and Redis stock release are separate operations. If release fails after cancellation, subsequent reconciliation scans of pending transactions will not retry that cancelled transaction.
-- Publication uses persistent messages on a regular RabbitMQ channel without publisher confirms. HTTP acceptance is not a broker-confirmed delivery guarantee.
+1. Unique constraints in Postgres are used ensure system correctness no matter what. (e.g. no transactions for same idempotency key, no user can make more than one purchase for the same product)
+2. Row lock to prevent retries from potentially deducting stock twice
+3. Robust Lua script in Redis to ensure that only valid purchase requests go through.
