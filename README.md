@@ -122,14 +122,28 @@ The API returns `202 Accepted` after submitting a purchase for processing. The f
 2. Row lock to prevent retries from potentially deducting stock twice
 3. Robust Lua script in Redis to ensure that only valid purchase requests go through.
 
-## Stress Test Results
+### Stress Test
+
+## Results
+
+The tests were done with:
+10s ramp-up
+5s spike
+20s sustained load
+5s ramp-down
+
+The number of virtual users and stock are proportional to the test profiles: light, medium or heavy.
 
 Admission throughput is the rate at which HTTP requests were accepted and queued; completion throughput is the rate at which purchases were completed in PostgreSQL.
 
-| Run | Profile | Duration (s) | Accepted/s | Completed/s | P95 completion (s) | P99 completion (s) |
-| --- | ------- | -----------: | ---------: | ----------: | -----------------: | -----------------: |
-| 1   | light   |         30.1 |    2,056.4 |       660.4 |             34.680 |             34.993 |
-| 2   | medium  |         33.1 |    1,866.8 |       597.0 |             42.504 |             43.388 |
-| 3   | heavy   |         40.1 |    1,649.0 |       670.6 |             49.333 |             49.721 |
+## Analysis
 
-Firstly, important to note is that the database all ended up in a correct state no matter the load (i.e. stock for product is 0, and correct number of transactions, and only one transaction per user). P99 increases per load
+### Prefetch: 0
+
+Complete statistics from the latest three runs. Times are in seconds, rates are per second, memory is in MB, and CPU values are percentages.
+
+| Run | Profile | Duration | Avg accepted/s | Avg admit | P95 admit | P99 admit | Error rate | First out-of-stock | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | DB active avg | Worker pool avg | Worker pool peak | Row lock waiters peak | Pool waiters peak | Avg pool acquire | P95 pool acquire | Peak pool acquire | Avg row lock | P95 row lock | Peak row lock | Redis CPU avg | Redis memory | Final stock | Transactions | Completed | Users attempted | Users completed | Avg DB completions/s | Avg completion | P95 completion | P99 completion |
+| --- | ------- | -------: | -------------: | --------: | --------: | --------: | ---------: | -----------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | --------------: | ---------------: | --------------------: | ----------------: | ---------------: | ---------------: | ----------------: | -----------: | -----------: | ------------: | ------------: | ------------ | ----------: | -----------: | --------: | --------------: | --------------: | -------------------: | -------------: | -------------: | -------------- |
+| 1   | light   |     40.0 |        2,343.9 |     0.070 |     0.138 |     0.250 |      0.00% |               14.9 |          40% |           88% |             141 |              218 |            11 |            10.0 |               10 |                     9 |               390 |            0.991 |            1.409 |             2.375 |        0.022 |        0.074 |         0.586 |           20% | 25.98 MiB    |           0 |       35,000 |    35,000 |         116,081 |          35,000 |                538.5 |         35.617 |         48.634 | 48.928         |
+| 2   | light   |     40.1 |        1,783.9 |     0.082 |     0.181 |     0.312 |      0.00% |               19.6 |          37% |           82% |             132 |              196 |            10 |             9.6 |               10 |                     9 |            32,005 |           25.468 |           27.907 |            45.972 |        0.032 |        0.101 |         1.181 |           19% | 22.02 MiB    |           0 |       35,000 |    35,000 |          99,458 |          35,000 |                530.3 |         37.782 |         45.829 | 46.045         |
+| 3   | medium  |     40.1 |        1,987.3 |     0.226 |     0.433 |     0.694 |      0.00% |               20.0 |          30% |           74% |             158 |              305 |            11 |             9.6 |               10 |                     9 |            36,514 |           32.664 |           37.468 |            51.181 |        0.026 |        0.089 |         0.841 |           19% | 24.2 MiB     |           0 |       40,000 |    40,000 |          97,255 |          40,000 |                555.6 |         40.609 |         50.698 | 51.037         |
