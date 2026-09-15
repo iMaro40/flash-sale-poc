@@ -16,10 +16,10 @@ All commands below should be run from the repository root.
 1. Install dependencies:
 
    ```sh
-   pnpm setup
+   pnpm run bootstrap
    ```
 
-   `pnpm setup` enables Corepack, which selects the exact pnpm version declared in
+   `pnpm run bootstrap` enables Corepack, which selects the exact pnpm version declared in
    `package.json`, then installs from the lockfile without changing it.
 
 2. Start PostgreSQL, Redis, RabbitMQ, and the background workers:
