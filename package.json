@@ -10,7 +10,7 @@
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "db:migrate": "npm --prefix backend run db:migrate",
-    "test": "pnpm --filter backend exec vitest run",
+    "test:unit": "pnpm --filter backend test",
     "test:integration": "pnpm docker:up:infra && docker compose stop purchase-worker reconcile-stock-worker && pnpm db:migrate && pnpm --filter backend exec vitest run --config vitest.integration.config.ts",
     "test:integration:setup": "pnpm test:integration",
     "docker:up:infra": "docker compose up -d --build postgres redis rabbitmq",
