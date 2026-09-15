@@ -134,7 +134,7 @@ The tests were done with:
 
 The number of virtual users and stock are proportional to the test profiles: light, medium or heavy. We tested with prefetch 0, meaning RabbitMQ is unbound, and prefetch 500, where RabbitMQ can only have 500 unacked messages at a time.
 
-# Prefetch: 500
+# Prefetch: 500, Max connections: 10
 
 | Run | Profile | Avg accepted/s | P99 admit | Avg DB completion/s | P95 completion | P99 completion | Node CPU avg | Node CPU peak | Node memory avg | Node memory peak | Redis CPU avg | Redis memory avg | P95 pool acquire | P95 row lock wait |
 | --- | ------- | -------------: | --------: | ------------------: | -------------: | -------------: | -----------: | ------------: | --------------: | ---------------: | ------------: | ---------------: | ---------------: | ----------------: |
@@ -142,7 +142,7 @@ The number of virtual users and stock are proportional to the test profiles: lig
 | 2   | medium  |        1,756.4 |     1.302 |               540.5 |         48.680 |         49.062 |          36% |           79% |             153 |              284 |           20% |         23.79 MB |            2.232 |             0.092 |
 | 3   | heavy   |        1,286.0 |     3.051 |               579.0 |         48.369 |         48.581 |          22% |           80% |             148 |              266 |           18% |         26.70 MB |            2.255 |             0.096 |
 
-# Prefetch: 0
+# Prefetch: 0, Max connections: 10
 
 Selected metrics from the latest three runs. Times are in seconds, rates are per second, memory is in MB, and CPU values are percentages.
 
@@ -166,10 +166,10 @@ The backend configures a maximum of 20 database connections. These CSV rows reco
 
 ## Analysis
 
-Firstly, testing showed that the database always converged to a correct state towards the end of the test (i.e. stock 0 for product, and matching number of transactions, no duplicate transactions, only one product poorchase per user). This proves integrity of the whole system.
+Firstly, testing showed that the database always converged to a correct state towards the end of the test (i.e. stock 0 for product, and matching number of transactions, no duplicate transactions, only one product poorchase per user). All tested runs proved integrity constraints of the requirement.
 
-Across these runs, completion throughput remains around 500–600 purchases per second while heavier load increases latency.Important to note is that P95 pool acquire is acceptably low, which shows we are sending requests to the database at an acceptable rate. We are also able to accept/reject requests very fast, so the bottleneck then is the rest of the workflow which is completing the purchase.
+Across these runs, completion throughput remains around 500–670 purchases per second while heavier load increases latency. We are also able to accept/reject requests very fast, so the bottleneck then is the rest of the workflow which is completing the purchase.
 
-Given this, to try and empirically isolate the bottleneck, we first tested to see if RabbitMQ is sending messages too slow by making the prefetch unbound (Prefetch: 0). Looking at the Pre Fetch 0 results, overall performance did not increase. If anything, it got slightly worse. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time to acquire a connection. Increasing the max. connections did not seem to increase overall performance either. The DB seems to conclusively be the bottleneck and it unable to keep up with the number of requests coming in.
+Given this, to try and empirically isolate the bottleneck, we first tested to see if RabbitMQ is sending messages too slow by making the prefetch unbound (Prefetch: 0). Looking at the Pre Fetch 0 results, overall throughput did somewhat increase, but the latency became much worse for the heavy loads. Looking at the P95 pool acquire stat of the Prefetch: 0 table, we can see that the requests are taking a very long time to acquire a connection. Increasing the max. connections increease the performance somewhat again, but not by much. These all suggest that the database is the bottleneck. It is simply unable to keep up with the number of requests coming in.
 
-For recommendations of scaling out, we can first try to increease the hardware specs of the DB to see if performance improves. Another common solution would be to shard the database with each database holding a certain amount of product. This way, we can scale out our write requests.
+For recommendations of scaling out, we can first try to increease the hardware specs of the DB to see if performance improves. Another common solution would be to shard the database with each database holding a certain amount of stock per product. This way, multiple db instances can support purchase requests for the same product.
